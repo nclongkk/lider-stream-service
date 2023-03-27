@@ -11,6 +11,9 @@ const express = require("express");
 const app = express();
 
 app.use(express.static("public"));
+app.get("/simple-sfu-client.js", (req, res) => {
+  res.sendFile(__dirname + "/public/SimpleSFUClient.js");
+});
 // based on examples at https://www.npmjs.com/package/ws
 const WebSocketServer = WebSocket.Server;
 
@@ -37,8 +40,9 @@ if (serverOptions.useHttps) {
 }
 let peers = new Map();
 let consumers = new Map();
+let rooms = new Map();
 
-function handleTrackEvent(e, peer, ws) {
+function handleTrackEvent(body, e, peer, ws) {
   if (e.streams && e.streams[0]) {
     peers.get(peer).stream = e.streams[0];
 
@@ -46,8 +50,9 @@ function handleTrackEvent(e, peer, ws) {
       type: "newProducer",
       id: peer,
       username: peers.get(peer).username,
+      roomId: body.roomId,
     };
-    wss.broadcast(JSON.stringify(payload));
+    wss.broadcast(body.roomId, JSON.stringify(payload));
   }
 }
 
@@ -62,6 +67,22 @@ function createPeer() {
   return peer;
 }
 
+function setBandwidthAudio(sdp, bandwidth) {
+  sdp = sdp.replace(
+    /a=mid:audio\r\n/g,
+    "a=mid:audio\r\nb=AS:" + audioBandwidth + "\r\n"
+  );
+  return sdp;
+}
+
+function setBandwidthVideo(sdp, bandwidth) {
+  sdp = sdp.replace(
+    /a=mid:video\r\n/g,
+    "a=mid:video\r\nb=AS:" + videoBandwidth + "\r\n"
+  );
+  return sdp;
+}
+
 // Create a server for handling websocket calls
 const wss = new WebSocketServer({ server: webServer });
 
@@ -69,10 +90,12 @@ wss.on("connection", function (ws) {
   let peerId = uuidv4();
   ws.id = peerId;
   ws.on("close", (event) => {
+    console.log("close room", ws.roomId);
     peers.delete(ws.id);
     consumers.delete(ws.id);
 
     wss.broadcast(
+      ws.roomId,
       JSON.stringify({
         type: "user_left",
         id: ws.id,
@@ -83,14 +106,26 @@ wss.on("connection", function (ws) {
   ws.send(JSON.stringify({ type: "welcome", id: peerId }));
   ws.on("message", async function (message) {
     const body = JSON.parse(message);
+    ws.roomId = body.roomId;
+    // console.log(peers);
     switch (body.type) {
       case "connect":
+        const existedRoom = rooms.get(body.roomId);
+        if (!existedRoom) {
+          const newSet = new Set();
+          newSet.add(body.uqid);
+          rooms.set(body.roomId, { peers: newSet });
+        } else {
+          existedRoom.peers.add(body.uqid);
+        }
+
         peers.set(body.uqid, { socket: ws });
+        console.log(peers.get(body.uqid));
         const peer = createPeer();
         peers.get(body.uqid).username = body.username;
         peers.get(body.uqid).peer = peer;
         peer.ontrack = (e) => {
-          handleTrackEvent(e, body.uqid, ws);
+          handleTrackEvent(body, e, body.uqid, ws);
         };
         const desc = new webrtc.RTCSessionDescription(body.sdp);
         await peer.setRemoteDescription(desc);
@@ -107,15 +142,28 @@ wss.on("connection", function (ws) {
       case "getPeers":
         let uuid = body.uqid;
         const list = [];
-        peers.forEach((peer, key) => {
-          if (key != uuid) {
-            const peerInfo = {
-              id: key,
-              username: peer.username,
-            };
-            list.push(peerInfo);
-          }
-        });
+        const room = rooms.get(body.roomId);
+        if (room) {
+          const listPeers = room.peers;
+          listPeers.forEach((peer) => {
+            if (peer != uuid) {
+              const peerInfo = {
+                id: peer,
+                username: peers.get(peer).username,
+              };
+              list.push(peerInfo);
+            }
+          });
+        }
+        // peers.forEach((peer, key) => {
+        //   if (key != uuid) {
+        //     const peerInfo = {
+        //       id: key,
+        //       username: peer.username,
+        //     };
+        //     list.push(peerInfo);
+        //   }
+        // });
 
         const peersPayload = {
           type: "peers",
@@ -143,7 +191,14 @@ wss.on("connection", function (ws) {
           remoteUser.stream.getTracks().forEach((track) => {
             consumers.get(consumerId).addTrack(track, remoteUser.stream);
           });
-          const _answer = await consumers.get(consumerId).createAnswer();
+          const _answer = await consumers
+            .get(consumerId)
+            .createAnswer(function (desc) {
+              desc.sdp = setBandwidthAudio(desc.sdp, 50);
+              desc.sdp = setBandwidthVideo(desc.sdp, 256);
+              console.log("answer", desc.sdp);
+              return desc;
+            });
           await consumers.get(consumerId).setLocalDescription(_answer);
 
           const _payload = {
@@ -169,19 +224,23 @@ wss.on("connection", function (ws) {
         }
         break;
       default:
-        wss.broadcast(message);
+        wss.broadcast(body.roomId, message);
     }
   });
 
   ws.on("error", () => ws.terminate());
 });
 
-wss.broadcast = function (data) {
-  peers.forEach(function (peer) {
-    if (peer.socket.readyState === WebSocket.OPEN) {
-      peer.socket.send(data);
-    }
-  });
+wss.broadcast = function (roomId, data) {
+  console.log("broadcasting", roomId);
+  const room = rooms.get(roomId);
+  !!room &&
+    room.peers.forEach((peerId) => {
+      const peer = peers.get(peerId);
+      if (!!peer && peer.socket.readyState === WebSocket.OPEN) {
+        peer.socket.send(data);
+      }
+    });
 };
 
 console.log("Server running.");

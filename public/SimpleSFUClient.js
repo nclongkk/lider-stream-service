@@ -13,7 +13,7 @@ const _EVENTS = {
   onRemoteTrack: "onRemoteTrack",
 };
 
-class SimpleSFUClient {
+class LiderClient {
   constructor(options) {
     const defaultSettings = {
       port: 5001,
@@ -25,6 +25,7 @@ class SimpleSFUClient {
       },
     };
 
+    this.roomId = null;
     this.settings = Object.assign({}, defaultSettings, options);
     this._isOpen = false;
     this.eventListeners = new Map();
@@ -34,6 +35,7 @@ class SimpleSFUClient {
     this.localPeer = null;
     this.localUUID = null;
     this.localStream = null;
+    this.username = null;
     Object.keys(_EVENTS).forEach((event) => {
       this.eventListeners.set(event, []);
     });
@@ -77,6 +79,7 @@ class SimpleSFUClient {
   }
 
   findUserVideo(username) {
+    console.log(username);
     return document.querySelector(`#remote_${username}`);
   }
 
@@ -89,7 +92,7 @@ class SimpleSFUClient {
       video.id = `remote_${username}`;
       video.srcObject = stream;
       video.autoplay = true;
-      video.muted = username == username.value;
+      video.muted = username == this.username;
 
       const div = document.createElement("div");
       div.id = `user_${username}`;
@@ -115,6 +118,7 @@ class SimpleSFUClient {
         type: "ice",
         ice: candidate,
         uqid: this.localUUID,
+        roomId: this.roomId,
       };
       this.connection.send(JSON.stringify(payload));
     }
@@ -128,6 +132,7 @@ class SimpleSFUClient {
         ice: candidate,
         uqid: id,
         consumerId,
+        roomId: this.roomId,
       };
       this.connection.send(JSON.stringify(payload));
     }
@@ -176,6 +181,7 @@ class SimpleSFUClient {
       id: peer.id,
       consumerId: transport.id,
       sdp: await transport.localDescription,
+      roomId: this.roomId,
     };
 
     this.connection.send(JSON.stringify(payload));
@@ -241,13 +247,54 @@ class SimpleSFUClient {
     this.recalculateLayout();
   }
 
-  async connect() {
+  initLayout() {
+    const layout = document.getElementById("remote_videos");
+    //add a div tag with class name videos-inner
+    const videosInner = document.createElement("div");
+    videosInner.classList.add("videos-inner");
+    layout.appendChild(videosInner);
+
+    //add a div tag with class name toolbox
+    const toolbox = document.createElement("div");
+    toolbox.classList.add("toolbox");
+    layout.appendChild(toolbox);
+
+    // add 4 buttons mic, video, screen share and end call
+    const mic = document.createElement("button");
+    mic.classList.add("mic");
+    mic.innerHTML = "Mic";
+    mic.addEventListener("click", () => this.toggleAudio());
+
+    const video = document.createElement("button");
+    video.classList.add("video");
+    video.innerHTML = "Video";
+    video.addEventListener("click", () => this.toggleVideo());
+
+    const screenShare = document.createElement("button");
+    screenShare.classList.add("screen-share");
+    screenShare.innerHTML = "Screen Share";
+
+    const endCall = document.createElement("button");
+    endCall.classList.add("end-call");
+    endCall.innerHTML = "End Call";
+    endCall.addEventListener("click", () => window.close());
+
+    toolbox.appendChild(mic);
+    toolbox.appendChild(video);
+    toolbox.appendChild(screenShare);
+    toolbox.appendChild(endCall);
+  }
+
+  async connect({ roomId, username }) {
     //Produce media
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      //   audio: true,
+      audio: true,
     });
-    this.handleRemoteTrack(stream, username.value);
+    this.initLayout();
+    this.username = username;
+    this.roomId = roomId;
+    this.handleRemoteTrack(stream, this.username);
     this.localStream = stream;
 
     this.localPeer = this.createPeer();
@@ -255,6 +302,16 @@ class SimpleSFUClient {
       .getTracks()
       .forEach((track) => this.localPeer.addTrack(track, this.localStream));
     await this.subscribe();
+  }
+
+  toggleAudio() {
+    this.localStream.getAudioTracks()[0].enabled =
+      !this.localStream.getAudioTracks()[0].enabled;
+  }
+
+  toggleVideo() {
+    this.localStream.getVideoTracks()[0].enabled =
+      !this.localStream.getVideoTracks()[0].enabled;
   }
 
   createPeer() {
@@ -274,6 +331,7 @@ class SimpleSFUClient {
     const payload = {
       type: "getPeers",
       uqid: this.localUUID,
+      roomId: this.roomId,
     };
 
     this.connection.send(JSON.stringify(payload));
@@ -289,7 +347,8 @@ class SimpleSFUClient {
         type: "connect",
         sdp: this.localPeer.localDescription,
         uqid: this.localUUID,
-        username: username.value,
+        username: this.username,
+        roomId: this.roomId,
       })
     );
   }

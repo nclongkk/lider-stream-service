@@ -8,27 +8,108 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <input type="text" id="username" placeholder="enter your username" /><button
-      id="connect"
-      disabled
-    >
-      Connect
-    </button>
-    <br />
-    <div id="remote_videos">
-      <div class="videos-inner"></div>
+    <div>
+      <input
+        type="text"
+        id="room_id"
+        placeholder="enter room id"
+        onchange="roomInputOnChange()"
+      />
+      <button id="generate" onclick="generateRoomUUID()">Generate</button>
+      <button id="invite" onclick="copyInviteUrl()" disabled>
+        Copy invite URL
+      </button>
     </div>
-    <script src="SimpleSFUClient.js"></script>
+    <input
+      type="text"
+      id="username"
+      onchange="usernameInputOnChange()"
+      placeholder="enter your username"
+    /><button id="connect" disabled>Connect</button>
+    <br />
+    <div id="remote_videos"></div>
+    <script src="https://localhost:5001/simple-sfu-client.js"></script>
     <script>
+      const roomIdInput = document.querySelector("#room_id");
       const connectBtn = document.querySelector("#connect");
+      const inviteBtn = document.querySelector("#invite");
       const remoteContainer = document.querySelector("#remote_videos");
-      const simple = new SimpleSFUClient();
-      console.log(simple);
-
-      simple.on("onConnected", () => {
-        connectBtn.disabled = false;
-        connectBtn.addEventListener("click", () => simple.connect());
+      const lider = new LiderClient();
+      let isConnect = false;
+      lider.on("onConnected", () => {
+        isConnect = true;
+        checkEnableConnectBtn();
+        connectBtn.addEventListener("click", () =>
+          lider.connect({
+            roomId: roomIdInput.value,
+            username: username.value,
+          })
+        );
       });
+
+      // function getRoomId() {
+      //   let roomId = uuidv4();
+      //   try {
+      //     roomId = window.location.search.match(/roomId=([^&]+)å/)[1];
+      //   } catch (error) {}
+      //   return roomId;
+      // }
+      if (window.location.search.match(/roomId=([^&]+)/)) {
+        roomIdInput.value = window.location.search.match(/roomId=([^&]+)/)[1];
+        checkEnableConnectBtn();
+      }
+
+      function copyInviteUrl() {
+        const url = `${window.location.origin}?roomId=${roomIdInput.value}`;
+        navigator.clipboard.writeText(url);
+      }
+
+      function checkEnableConnectBtn() {
+        const canConnect = isConnect && roomIdInput.value && username.value;
+        if (canConnect) {
+          connectBtn.disabled = false;
+          inviteBtn.disabled = false;
+        }
+      }
+
+      function roomInputOnChange() {
+        if (roomIdInput.value.split("").length < 35) {
+          connectBtn.disabled = true;
+        } else {
+          connectBtn.disabled = false;
+        }
+      }
+
+      function usernameInputOnChange() {
+        if (!username.value) {
+          connectBtn.disabled = true;
+          return;
+        }
+
+        if (username.value.split("").length > 20) {
+          alert("username must be less than 20 characters");
+          return;
+        }
+
+        connectBtn.disabled = false;
+      }
+
+      function generateRoomUUID() {
+        const newRoomId = uuidv4();
+        roomIdInput.value = newRoomId;
+        checkEnableConnectBtn();
+      }
+
+      function uuidv4() {
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+          /[xy]/g,
+          function (c) {
+            var r = (Math.random() * 16) | 0,
+              v = c == "x" ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+          }
+        );
+      }
     </script>
   </body>
 </html>
