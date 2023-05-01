@@ -27,6 +27,7 @@
       placeholder="enter your username"
     /><button id="connect" disabled>Connect</button>
     <br />
+    <div id="lider-container"></div>
     <div id="remote_videos"></div>
     <script src="https://localhost:5001/simple-sfu-client.js"></script>
     <script>
@@ -34,7 +35,8 @@
       const connectBtn = document.querySelector("#connect");
       const inviteBtn = document.querySelector("#invite");
       const remoteContainer = document.querySelector("#remote_videos");
-      const lider = new LiderClient();
+      const liderContainer = document.querySelector("#lider-container");
+      const lider = new LiderClient(liderContainer);
       let isConnect = false;
       lider.on("onConnected", () => {
         isConnect = true;
@@ -42,7 +44,18 @@
         connectBtn.addEventListener("click", () =>
           lider.connect({
             roomId: roomIdInput.value,
-            username: username.value,
+            user: {
+              video: true,
+              audio: false,
+              username: username.value,
+              avatar: undefined,
+              // avatar: `https://ui-avatars.com/api/?name=${username.value
+              //   .split(" ")
+              //   .join("+")}&background=random&length=1&rounded=true&size=200}`,
+              metadata: {
+                id: "2123123123",
+              },
+            },
           })
         );
       });

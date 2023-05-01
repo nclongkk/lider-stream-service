@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Video Call Website</title>
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://localhost:5001/style.css"
+    />
+    <script
+      src="https://kit.fontawesome.com/23974c6d06.js"
+      crossorigin="anonymous"
+    ></script>
+    <link
+      rel="stylesheet"
+      href="https://use.fontawesome.com/releases/v5.10.2/css/all.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://use.fontawesome.com/releases/v5.10.2/css/v4-shims.css"
+    />
+  </head>
+  <body scroll="no" style="overflow: hidden">
+    <div id="lider-main">
+      <div id="lider-meeting-area">
+        <div id="lider-video-area">
+          <div id="lider-videos"></div>
+        </div>
+        <div id="lider-toolbox">
+          <div id="lider-toolbox-left" class="lider-toolbox-button-container">
+            <button id="lider-toogle-audio" class="lider-toolbox-button">
+              <i
+                id="lider-audio-icon"
+                class="fa fa-solid fa-microphone fa-beat fa-2xl"
+                style="color: #ffffff"
+              ></i>
+              Audio
+            </button>
+            <button id="lider-toggle-video" class="lider-toolbox-button">
+              <i
+                id="lider-video-icon"
+                class="fa fa-solid fa-video fa-2xl"
+                style="color: #ffffff"
+              ></i>
+              Video
+            </button>
+          </div>
+          <div id="lider-toolbox-center" class="lider-toolbox-button-container">
+            <button id="lider-hangup" class="lider-toolbox-button">
+              Hang up
+            </button>
+          </div>
+          <div id="lider-toolbox-right" class="lider-toolbox-button-container">
+            <button id="lider-fullscreen" class="lider-toolbox-button">
+              Full Screen
+            </button>
+            <button id="lider-share-screen" class="lider-toolbox-button">
+              Share screen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  <script src="https://localhost:5001/simple-sfu-client.js"></script>
+  <script>
+    // const iframe = document.getElementById("iframe");
+    // iframe.onload = function () {
+    //   iframe.contentWindow.document.addEventListener("click", inform);
+    // };
+
+    // iframe.contentWindow.document.getElementById("h1").innerHTML =
+    //   "Hello World!";
+    // document.getElementById("h1").innerHTML = "Hello World!";
+    // let liderView;
+    // window.addEventListener(
+    //   "load",
+    //   function () {
+    //     let scenary = document.getElementById("lider-videos");
+    //     liderView = new LiderView(scenary);
+    //     liderView.append();
+    //     liderView.resize();
+
+    //     window.addEventListener("resize", function () {
+    //       liderView.resize();
+    //     });
+    //   },
+    //   false
+    // );
+  </script>
+</html>
