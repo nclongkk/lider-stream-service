@@ -41,6 +41,7 @@
       lider.on("onConnected", () => {
         isConnect = true;
         checkEnableConnectBtn();
+
         connectBtn.addEventListener("click", () =>
           lider.connect({
             roomId: roomIdInput.value,

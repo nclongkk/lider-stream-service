@@ -85,17 +85,28 @@ class LiderClient {
   }
 
   findUserVideo(username) {
-    console.log(username);
     return document.querySelector(`#remote_${username}`);
   }
 
-  async handleRemoteTrack(stream, user, from) {
-    console.log("handleRemoteTrack", user, from);
+  async handleRemoteTrack(stream, user) {
     if (!user.username) {
       console.log("not enough data ", user);
     }
     const username = user.username || user;
     this.liderView?.addOneCamera(user, stream);
+    console.log("handleRemoteTrack", user);
+    if (user.id !== this.localUUID && !user.audio) {
+      const iframe = document.getElementById("lider-iframe");
+
+      const camera = iframe.contentWindow.document.getElementById(user.id);
+      const divAudio = camera.getElementsByClassName(
+        "lider-audio-bottom-right"
+      )[0];
+      const audioIconCamera = divAudio.getElementsByTagName("i")[0];
+      console.log("audioIconCamera", audioIconCamera, divAudio);
+      divAudio.style.background = "#00000070";
+      audioIconCamera.classList = "fas fa-microphone-slash";
+    }
     // const userVideo = this.findUserVideo(username);
     // if (userVideo) {
     //   userVideo.srcObject.addTrack(stream.getTracks()[0]);
@@ -125,7 +136,6 @@ class LiderClient {
   }
 
   async handleIceCandidate({ candidate }) {
-    console.log("handleIceCandidate");
     if (candidate && candidate.candidate && candidate.candidate.length > 0) {
       const payload = {
         type: "ice",
@@ -159,8 +169,7 @@ class LiderClient {
       .catch((e) => console.log(e));
   }
 
-  async createConsumeTransport(peer, from) {
-    console.log("createConsumeTransport", peer, from);
+  async createConsumeTransport(peer) {
     const consumerId = this.uuidv4();
     const consumerTransport = new RTCPeerConnection(
       this.settings.configuration
@@ -182,14 +191,13 @@ class LiderClient {
       this.handleConsumerIceCandidate(e, peer.id, consumerId);
 
     this.consumers.get(consumerId).ontrack = (e) => {
-      this.handleRemoteTrack(e.streams[0], peer, "create consume transport");
+      this.handleRemoteTrack(e.streams[0], peer);
     };
 
     return consumerTransport;
   }
 
-  async consumeOnce(peer, from) {
-    console.log("consumeOnce", peer, from);
+  async consumeOnce(peer) {
     const transport = await this.createConsumeTransport(peer);
     const payload = {
       type: "consume",
@@ -203,14 +211,13 @@ class LiderClient {
   }
 
   async handlePeers({ userSharingScreen, peers }) {
-    console.log("handlePeers", peers);
     if (userSharingScreen) {
       this.consumeScreenShare(userSharingScreen);
     }
     if (peers.length > 0) {
       for (const peer in peers) {
         this.clients.set(peers[peer].id, peers[peer]);
-        await this.consumeOnce(peers[peer].user, "handle peers");
+        await this.consumeOnce(peers[peer].user);
       }
     }
   }
@@ -222,12 +229,10 @@ class LiderClient {
   }
 
   async handleNewProducer({ id, user }) {
-    console.log("handleNewProducer", id, user, this.localUUID);
     if (id === this.localUUID) return;
 
     this.clients.set(id, user);
-
-    await this.consumeOnce(user, "handleNewProducer");
+    await this.consumeOnce(user);
   }
 
   handleMessage({ data }) {
@@ -267,11 +272,44 @@ class LiderClient {
 
       case "user_stop_screen_share":
         console.log("user_stop_screen_share");
+        this.liderView?.closeShareScreen();
         this.consumerScreenShare = null;
         break;
+
+      case "remoteUserUpdate":
+        this.handleRemoteUserUpdate(message);
     }
   }
 
+  handleRemoteUserUpdate(body) {
+    if (body.user.id === this.localUUID) return;
+    if (body.action === "toggleVideo") {
+      const iframe = document.getElementById("lider-iframe");
+      const camera = iframe.contentWindow.document.getElementById(body.user.id);
+      const video = camera.getElementsByTagName("video")[0];
+
+      video.style.visibility = body.user.video ? "visible" : "hidden";
+    }
+
+    if (body.action === "toggleAudio") {
+      const iframe = document.getElementById("lider-iframe");
+      const camera = iframe.contentWindow.document.getElementById(body.user.id);
+      const divAudio = camera.getElementsByClassName(
+        "lider-audio-bottom-right"
+      )[0];
+      const audioIcon = divAudio.getElementsByTagName("i")[0];
+
+      if (body.user.audio) {
+        divAudio.style.background = "#0e79f8";
+        audioIcon.classList.toggle("fa-microphone");
+        audioIcon.classList.toggle("fa-microphone-slash");
+      } else {
+        divAudio.style.background = "#00000070";
+        audioIcon.classList.toggle("fa-microphone-slash");
+        audioIcon.classList.toggle("fa-microphone");
+      }
+    }
+  }
   removeUser({ id }) {
     const { username, consumerId } = this.clients.get(id);
     this.consumers.delete(consumerId);
@@ -286,7 +324,6 @@ class LiderClient {
 
   initLayout(liderContainer) {
     const layout = liderContainer;
-    console.log(layout);
     //set layout size
     layout.style.width = "1500px";
     layout.style.height = "900px";
@@ -294,7 +331,6 @@ class LiderClient {
     const iframe = document.createElement("iframe");
     iframe.id = "lider-iframe";
     iframe.src = "https://localhost:5001/meet";
-    console.log(iframe);
     iframe.style.width = "100%";
     iframe.style.height = "100%";
     layout?.appendChild(iframe);
@@ -413,13 +449,6 @@ class LiderClient {
       audio: true,
     });
 
-    if (!user.video) {
-      stream.getVideoTracks()[0].enabled = false;
-    }
-
-    if (!user.audio) {
-      stream.getAudioTracks()[0].enabled = false;
-    }
     const layout = this.liderContainer;
     //set layout size
     layout.style.width = "100%";
@@ -428,7 +457,6 @@ class LiderClient {
     const iframe = document.createElement("iframe");
     iframe.id = "lider-iframe";
     iframe.src = "https://localhost:5001/meet";
-    console.log(iframe);
     iframe.style.width = "100%";
     iframe.style.height = "100%";
     // attach the iframe to the layout
@@ -452,13 +480,26 @@ class LiderClient {
         iframe.contentWindow.document
           .getElementById("lider-toogle-audio")
           .addEventListener("click", () => this.toggleAudio());
+
+        iframe.contentWindow.document
+          .getElementById("lider-share-screen")
+          .addEventListener("click", () => this.shareScreen());
+        if (!user.video) {
+          stream.getVideoTracks()[0].enabled = false;
+          this.disableVideo();
+        }
+
+        if (!user.audio) {
+          stream.getAudioTracks()[0].enabled = false;
+          this.disableAudio();
+        }
       }, 500);
 
       user.id = this.localUUID;
       this.user = user;
       this.username = user.username;
       this.roomId = roomId;
-      this.handleRemoteTrack(stream, this.user, "user connect");
+      this.handleRemoteTrack(stream, this.user);
       this.localStream = stream;
 
       this.localPeer = this.createPeer();
@@ -469,9 +510,69 @@ class LiderClient {
     };
   }
 
+  enableAudio() {
+    const iframe = document.getElementById("lider-iframe");
+    const audioIcon =
+      iframe.contentWindow.document.getElementById("lider-audio-icon");
+
+    const camera = iframe.contentWindow.document.getElementById(this.localUUID);
+    const divAudio = camera.getElementsByClassName(
+      "lider-audio-bottom-right"
+    )[0];
+    const audioIconCamera = divAudio.getElementsByTagName("i")[0];
+
+    if (
+      this.user.audio &&
+      audioIcon.classList.value.includes("fa-microphone-slash")
+    ) {
+      divAudio.style.background = "#0e79f8";
+      audioIconCamera.classList = "fas fa-microphone";
+
+      audioIcon.classList.toggle("fa-microphone");
+      audioIcon.classList.toggle("fa-microphone-slash");
+      this.localStream.getAudioTracks()[0].enabled = true;
+    }
+  }
+
+  disableAudio() {
+    const iframe = document.getElementById("lider-iframe");
+    const audioIcon =
+      iframe.contentWindow.document.getElementById("lider-audio-icon");
+
+    const camera = iframe.contentWindow.document.getElementById(this.localUUID);
+    const divAudio = camera.getElementsByClassName(
+      "lider-audio-bottom-right"
+    )[0];
+    const audioIconCamera = divAudio.getElementsByTagName("i")[0];
+    if (
+      !this.user.audio &&
+      !audioIcon.classList.value.includes("fa-microphone-slash")
+    ) {
+      divAudio.style.background = "#00000070";
+      audioIconCamera.classList = "fas fa-microphone-slash";
+
+      audioIcon.classList.toggle("fa-microphone");
+      audioIcon.classList.toggle("fa-microphone-slash");
+      this.localStream.getAudioTracks()[0].enabled = false;
+    }
+  }
+
   toggleAudio() {
-    this.localStream.getAudioTracks()[0].enabled = !this.localStream.getAud;
-    ioTracks()[0].enabled;
+    this.user.audio = !this.user.audio;
+    if (this.user.audio) {
+      this.enableAudio();
+    } else {
+      this.disableAudio();
+    }
+
+    this.connection?.send(
+      JSON.stringify({
+        type: "updateUser",
+        roomId: this.roomId,
+        user: this.user,
+        action: "toggleAudio",
+      })
+    );
   }
 
   enableVideo() {
@@ -518,6 +619,15 @@ class LiderClient {
     } else {
       this.disableVideo();
     }
+
+    this.connection.send(
+      JSON.stringify({
+        type: "updateUser",
+        roomId: this.roomId,
+        user: this.user,
+        action: "toggleVideo",
+      })
+    );
     // this.localStream.getVideoTracks()[0].enabled =
     //   !this.localStream.getVideoTracks()[0].enabled;
   }
@@ -596,12 +706,30 @@ class LiderClient {
 
   // Script for screen sharing
   async shareScreen() {
+    if (this.consumerScreenShare) {
+      this.renderPopup({
+        title: "Can not share screen",
+        msg: `${this.consumerScreenShare.user.username} is already sharing screen.`,
+      });
+      return;
+    }
+
+    if (this.localShareScreenStream) {
+      this.renderPopup({
+        title: "Can not share screen",
+        msg: `You are already sharing screen.`,
+      });
+      return;
+    }
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: true,
     });
-    stream.getVideoTracks()[0].onended = () => this.stopScreenShare();
-    this.handleRemoteTrack(stream, "Screen Share");
+    console.log(stream.getVideoTracks()[0]);
+    stream.getVideoTracks()[0].onended = () => {
+      this.stopScreenShare();
+    };
+    this.liderView?.expand(stream);
     this.screenShareStream = stream;
 
     this.screenSharePeer = this.createShareScreenPeer();
@@ -643,8 +771,7 @@ class LiderClient {
       JSON.stringify({
         type: "connect-screen-share",
         sdp: this.localShareScreenStream.localDescription,
-        uqid: this.localUUID,
-        username: this.username,
+        user: this.user,
         roomId: this.roomId,
       })
     );
@@ -659,13 +786,16 @@ class LiderClient {
   }
 
   async consumeScreenShare(message) {
-    if (message.userId === this.localUUID) return;
+    console.log("consume screen share");
+    if (message.user.id === this.localUUID) return;
 
     const consumerScreenShareId = this.uuidv4();
     this.consumerScreenShare = new RTCPeerConnection(
       this.settings.configuration
     );
+    this.consumerScreenShare.user = message.user;
     this.consumerScreenShare.id = consumerScreenShareId;
+    console.log(this.consumerScreenShare);
     this.consumerScreenShare.addTransceiver("video", {
       direction: "recvonly",
     });
@@ -679,7 +809,7 @@ class LiderClient {
       this.handleIceCandidateForScreenShareConsumer(e, consumerScreenShareId);
 
     this.consumerScreenShare.ontrack = (e) =>
-      this.handleRemoteTrack(e.streams[0], `${message.username} is sharing`);
+      this.liderView?.expand(e.streams[0]);
     this.connection.send(
       JSON.stringify({
         type: "consume-screen-share",
@@ -712,11 +842,35 @@ class LiderClient {
       .catch((e) => console.log(e));
   }
 
+  renderPopup({ title, msg }) {
+    const iframe = document.getElementById("lider-iframe");
+    const modal =
+      iframe.contentWindow.document.getElementsByClassName("lider-modal")[0];
+    modal.getElementsByTagName("p")[0].innerHTML = msg;
+    modal.getElementsByTagName("h3")[0].innerHTML = title;
+    modal.classList.remove("ease-in");
+    modal.classList.remove("duration-200");
+    modal.classList.add("ease-out");
+    modal.classList.add("duration-300");
+    modal.classList.remove("opacity-0");
+    modal.classList.remove("translate-y-4");
+    modal.classList.remove("sm:translate-y-0");
+    modal.classList.remove("sm:scale-95");
+    modal.classList.add("opacity-100");
+    modal.classList.add("translate-y-0");
+    modal.classList.add("sm:scale-100");
+    setTimeout(() => {
+      modal.classList.remove("hidden");
+    }, 200);
+  }
+
   stopScreenShare() {
+    console.log("stop screen share", this.localShareScreenStream);
     if (!this.localShareScreenStream) return;
 
+    this.liderView?.closeShareScreen();
     this.localShareScreenStream = null;
-
+    console.log("inform stop screen share");
     this.connection.send(
       JSON.stringify({
         type: "stop_screen_share",
@@ -874,22 +1028,29 @@ class LiderView {
   // }
 
   async addOneCamera(user, stream) {
-    this._cameras++;
+    const iframe = document.getElementById("lider-iframe");
+    let Camera = iframe.contentWindow.document.getElementById(user.id);
+    if (Camera) {
+      const video = Camera.querySelector("video");
+      video.srcObject = stream;
+      video.autoplay = true;
+      return;
+    }
 
-    // create camera
-    let Camera = document.createElement("div");
-    // add id
+    this._cameras++;
+    Camera = document.createElement("div");
     Camera.setAttribute("id", user.id);
     Camera.className = "lider-camera";
     if (!user.avatar) {
       user.avatar = `https://ui-avatars.com/api/?name=${user.username
         .split(" ")
-        .join("+")}&background=random&length=1&rounded=true&size=200}`;
-    } else {
+        .join("+")}&background=random&length=1&rounded=true&size=128}`;
+    }
+    if (!user.avatar.startsWith("https://ui-avatars.com/api/")) {
       Camera.style.backgroundSize = "cover";
     }
-    Camera.style.backgroundImage = "url(" + user.avatar + ")";
 
+    Camera.style.backgroundImage = "url(" + user.avatar + ")";
     let video = document.createElement("video");
 
     if (!stream) {
@@ -909,12 +1070,17 @@ class LiderView {
 
     Camera.appendChild(video);
 
-    // create span to show user name
     let span = document.createElement("span");
     span.innerHTML = user.username;
     span.className = "lider-username-bottom-left";
-    // append span to camera
     Camera.appendChild(span);
+
+    let divAudio = document.createElement("div");
+    divAudio.className = "lider-audio-bottom-right";
+    let audio = document.createElement("i");
+    audio.className = "fas fa-microphone";
+    divAudio.appendChild(audio);
+    Camera.appendChild(divAudio);
 
     this._dish.appendChild(Camera);
     this.resize();
@@ -924,7 +1090,6 @@ class LiderView {
     const iframe = document.getElementById("lider-iframe");
 
     let camera = iframe.contentWindow.document.getElementById(id);
-    console.log(camera);
     this._dish.removeChild(camera);
     this.resize();
   }
@@ -966,7 +1131,15 @@ class LiderView {
   }
 
   // set screen scenary
-  async expand() {
+  closeShareScreen() {
+    let screens = this._conference.querySelector(".Screen");
+    if (screens) {
+      this._conference.removeChild(screens);
+    }
+    this.resize();
+  }
+
+  async expand(stream) {
     // detect screen exist
     let screens = this._conference.querySelector(".Screen");
     if (screens) {
@@ -977,11 +1150,14 @@ class LiderView {
       let screen = document.createElement("div");
       screen.classList.add("Screen");
 
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true,
-      });
-      stream.getVideoTracks()[0].onended = () => this.expand();
+      if (!stream) {
+        // get screen stream
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+      }
+
       // create video
       let video = document.createElement("video");
       video.classList.add("Screen-video");

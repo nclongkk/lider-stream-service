@@ -82,8 +82,7 @@ function handleTrackEventScreenShare(body, e, roomId, ws) {
     const payload = {
       type: "newProducer-screen-share",
       roomId: body.roomId,
-      userId: room.screenShare.userId,
-      username: room.screenShare.username,
+      user: room.screenShare.user,
     };
     console.log("handleTrackEventScreenShare", payload);
     wss.broadcast(body.roomId, JSON.stringify(payload));
@@ -207,8 +206,7 @@ wss.on("connection", function (ws) {
 
         const peerScreenShare = createPeer();
         existedRoomScreenShare.screenShare = {
-          userId: body.uqid,
-          username: body.username,
+          user: body.user,
           peer: peerScreenShare,
           ws: ws,
         };
@@ -248,8 +246,7 @@ wss.on("connection", function (ws) {
           });
           if (room.screenShare) {
             userSharingScreen = {
-              userId: room.screenShare.userId,
-              username: room.screenShare.username,
+              user: room.screenShare.user,
             };
           }
         }
@@ -290,7 +287,11 @@ wss.on("connection", function (ws) {
         //     .catch((e) => console.log(e));
         console.log("ice-screen-share", body);
         const room = rooms.get(body.roomId);
-        if (room && room.screenShare && room.screenShare.userId === body.uqid) {
+        if (
+          room &&
+          room.screenShare &&
+          room.screenShare.user.id === body.uqid
+        ) {
           room.screenShare.peer
             .addIceCandidate(new webrtc.RTCIceCandidate(body.ice))
             .catch((e) => console.log(e));
@@ -418,13 +419,18 @@ wss.on("connection", function (ws) {
       }
 
       case "stop_screen_share": {
+        console.log("stop_screen_share");
         const room = rooms.get(body.roomId);
-        if (room && room.screenShare && room.screenShare.userId === body.uqid) {
+        if (
+          room &&
+          room.screenShare &&
+          room.screenShare.user.id === body.uqid
+        ) {
           room.screenShare.stream.getTracks().forEach((track) => {
             track.stop();
           });
 
-          room.screenShare.consumerOfScreenShare.forEach((consumerId) => {
+          room.screenShare.consumerOfScreenShare?.forEach((consumerId) => {
             consumersScreenShare.get(consumerId).close();
             consumersScreenShare.delete(consumerId);
           });
@@ -439,6 +445,24 @@ wss.on("connection", function (ws) {
         }
         break;
       }
+
+      case "updateUser": {
+        const user = peers.get(body.user.id)?.user;
+        if (user) {
+          user.video = body.user.video;
+          user.audio = body.user.audio;
+        }
+
+        const room = rooms.get(body.roomId);
+        if (room) {
+          const payload = {
+            ...body,
+            type: "remoteUserUpdate",
+          };
+          wss.broadcast(body.roomId, JSON.stringify(payload));
+        }
+        break;
+      }
       default:
         wss.broadcast(body.roomId, message);
     }
@@ -448,7 +472,6 @@ wss.on("connection", function (ws) {
 });
 
 wss.broadcast = function (roomId, data) {
-  console.log("broadcasting", roomId, data);
   const room = rooms.get(roomId);
   !!room &&
     room.peers.forEach((peerId) => {

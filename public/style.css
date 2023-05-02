@@ -340,8 +340,34 @@ header h1 {
   left: 14px;
   background: #00000070;
   color: #ffffff;
-  padding: 10px 20px;
+  padding: 8px 10px;
   border-radius: 10px;
-  font-size: 20px;
+  font-size: 12px;
   font-weight: bold;
+}
+
+.lider-audio-bottom-right {
+  position: absolute;
+  bottom: 8px;
+  right: 14px;
+  background: #0e79f8;
+  color: #ffffff;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+#popup {
+  z-index: 9999;
+}
+
+#popup .bg-white {
+  width: 400px;
+  max-height: 120px;
+  margin-top: 128px;
+}
+
+#close-popup {
+  float: right;
 }
