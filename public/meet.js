@@ -1305,7 +1305,7 @@ class LiderView {
     if (!stream) {
       stream = await navigator.mediaDevices.getUserMedia({
         video: true,
-        audio: false,
+        audio: true,
       });
     }
 
@@ -1346,7 +1346,7 @@ class LiderView {
   async getWebcam() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      audio: false,
+      audio: true,
     });
 
     const video = document.createElement("video");
