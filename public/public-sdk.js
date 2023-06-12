@@ -5,7 +5,7 @@ class LiderClient {
     if (!this.container) {
       throw new Error("Container is required");
     }
-    this.iframeDomain = "https://localhost:5001/meet";
+    this.iframeDomain = "https://meet-lider.it-pfiev-dut.tech/meet";
     this.user = null;
     this.token = null;
     this.url = null;

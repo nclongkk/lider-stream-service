@@ -44,7 +44,7 @@ class LiderClient {
       },
     };
 
-    this.serverDomain = "localhost:5001";
+    this.serverDomain = "meet-lider.it-pfiev-dut.tech";
 
     this.roomId = null;
     this.settings = Object.assign({}, defaultSettings);

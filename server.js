@@ -23,29 +23,29 @@ const {
 app.use(express.static("public"));
 
 // =============================
-// app.get("/public-sdk.js", (req, res) => {
-//   res.sendFile(__dirname + "/public/public-sdk.js");
-// });
+app.get("/public-sdk.js", (req, res) => {
+  res.sendFile(__dirname + "/public/public-sdk.js");
+});
 
 app.get("/meet", (req, res) => {
   res.sendFile(__dirname + "/public/meet.html");
 });
 
-// app.get("/meet.js", (req, res) => {
-//   res.sendFile(__dirname + "/public/meet.js");
-// });
+app.get("/meet.js", (req, res) => {
+  res.sendFile(__dirname + "/public/meet.js");
+});
 
-// app.get("/waiting", (req, res) => {
-//   res.sendFile(__dirname + "/public/waiting.html");
-// });
+app.get("/waiting", (req, res) => {
+  res.sendFile(__dirname + "/public/waiting.html");
+});
 
-// app.get("/style.css", (req, res) => {
-//   res.sendFile(__dirname + "/public/style.css");
-// });
+app.get("/style.css", (req, res) => {
+  res.sendFile(__dirname + "/public/style.css");
+});
 
-// app.get("/iframe", (req, res) => {
-//   res.sendFile(__dirname + "/public/iframe.html");
-// });
+app.get("/iframe", (req, res) => {
+  res.sendFile(__dirname + "/public/iframe.html");
+});
 // based on examples at https://www.npmjs.com/package/ws
 const WebSocketServer = WebSocket.Server;
 
