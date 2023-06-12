@@ -10,32 +10,50 @@ const WebSocket = require("ws");
 const express = require("express");
 const app = express();
 const _ = require("lodash");
+const dotenv = require("dotenv");
+dotenv.config();
+const {
+  verifyToken,
+  startMeeting,
+  newUserJoin,
+  endMeeting,
+  userLeft,
+} = require("./api-call");
 
 app.use(express.static("public"));
-app.get("/simple-sfu-client.js", (req, res) => {
-  res.sendFile(__dirname + "/public/SimpleSFUClient.js");
-});
+
+// =============================
+// app.get("/public-sdk.js", (req, res) => {
+//   res.sendFile(__dirname + "/public/public-sdk.js");
+// });
 
 app.get("/meet", (req, res) => {
-  console.log("meet");
   res.sendFile(__dirname + "/public/meet.html");
 });
 
-app.get("/style.css", (req, res) => {
-  res.sendFile(__dirname + "/public/style.css");
-});
+// app.get("/meet.js", (req, res) => {
+//   res.sendFile(__dirname + "/public/meet.js");
+// });
 
-app.get("/iframe", (req, res) => {
-  res.sendFile(__dirname + "/public/iframe.html");
-});
+// app.get("/waiting", (req, res) => {
+//   res.sendFile(__dirname + "/public/waiting.html");
+// });
+
+// app.get("/style.css", (req, res) => {
+//   res.sendFile(__dirname + "/public/style.css");
+// });
+
+// app.get("/iframe", (req, res) => {
+//   res.sendFile(__dirname + "/public/iframe.html");
+// });
 // based on examples at https://www.npmjs.com/package/ws
 const WebSocketServer = WebSocket.Server;
 
 let serverOptions = {
-  listenPort: 5001,
+  listenPort: process.env.PORT || 3000,
   useHttps: true,
-  httpsCertFile: "/Users/nclongkk/BossProject/Lider/web-rtc-server/cert.pem",
-  httpsKeyFile: "/Users/nclongkk/BossProject/Lider/web-rtc-server/key.pem",
+  httpsCertFile: process.env.HTTPS_CERT_FILE,
+  httpsKeyFile: process.env.HTTPS_KEY_FILE,
 };
 
 let sslOptions = {};
@@ -61,7 +79,6 @@ function handleTrackEvent(body, e, peer, ws) {
   if (e.streams && e.streams[0]) {
     peers.get(peer).stream = e.streams[0];
     const user = rooms.get(body.roomId).clients[peer];
-    console.log("handleTrackEvent", user);
 
     const payload = {
       type: "newProducer",
@@ -84,7 +101,6 @@ function handleTrackEventScreenShare(body, e, roomId, ws) {
       roomId: body.roomId,
       user: room.screenShare.user,
     };
-    console.log("handleTrackEventScreenShare", payload);
     wss.broadcast(body.roomId, JSON.stringify(payload));
   }
 }
@@ -116,6 +132,104 @@ function setBandwidthVideo(sdp, bandwidth) {
   return sdp;
 }
 
+async function handleRequestJoin(body, ws) {
+  let roomInfo;
+  try {
+    roomInfo = await verifyToken({
+      token: body.token,
+      webUrl: body.webUrl,
+      roomId: body.roomId,
+    });
+    body.customRoomId = body.roomId;
+    body.roomId = roomInfo.result._id + "_" + body.roomId;
+  } catch (error) {
+    ws.send(
+      JSON.stringify({
+        type: "request-join-error",
+        message: error.response.data.message,
+      })
+    );
+    return;
+  }
+  try {
+    const existedRoom = rooms.get(body.roomId);
+    if (existedRoom) {
+      if (existedRoom.clients[ws.id]) {
+        ws.send(
+          JSON.stringify({
+            type: "request-join-error",
+            message: "You are already in this room",
+          })
+        );
+        return;
+      }
+
+      if (existedRoom.accessType === "public") {
+        existedRoom.allowList.add(ws.id);
+        ws.roomId = body.roomId;
+        ws.send(
+          JSON.stringify({
+            type: "request-join-success",
+            roomId: body.roomId,
+          })
+        );
+      }
+
+      if (existedRoom.accessType === "askToJoin") {
+        const room = rooms.get(body.roomId);
+        const waitList = room.waitList || new Map();
+        waitList.set(ws.id, { socket: ws, user: body.user });
+        room.waitList = waitList;
+
+        //inform creator
+        const creator = peers.get(room.createdBy);
+        creator.socket.send(
+          JSON.stringify({
+            type: "askToJoin/someone-request-join",
+            user: body.user,
+          })
+        );
+      }
+    } else {
+      const allowListSet = new Set();
+      allowListSet.add(ws.id);
+      rooms.set(body.roomId, {
+        clients: {},
+        peers: new Set(),
+        allowList: allowListSet,
+        accessType: body.accessType,
+        createdAt: new Date(),
+        createdBy: ws.id,
+        app: roomInfo.result,
+      });
+      ws.roomId = body.roomId;
+
+      await startMeeting({
+        roomId: body.roomId,
+        customRoomId: body.customRoomId,
+        appId: roomInfo.result._id,
+        createdBy: body.user,
+        accessType: body.accessType,
+      });
+      ws.send(
+        JSON.stringify({
+          type: "request-join-success",
+          roomId: body.roomId,
+        })
+      );
+      // if (body.accessType === "public") {
+      // }
+    }
+  } catch (error) {
+    ws.send(
+      JSON.stringify({
+        type: "request-join-error",
+        message: error.response.data.message,
+      })
+    );
+  }
+}
+
 // Create a server for handling websocket calls
 const wss = new WebSocketServer({ server: webServer });
 
@@ -123,15 +237,12 @@ wss.on("connection", function (ws) {
   let peerId = uuidv4();
   ws.id = peerId;
   ws.on("close", (event) => {
-    console.log("close room", ws.roomId);
     if (!ws.roomId) return;
-    rooms.get(ws.roomId).peers.delete(ws.id);
-    rooms.get(ws.roomId).clients[ws.id] = {
-      ...rooms.get(ws.roomId).clients[ws.id],
-      id: ws.id,
-      disconnectedAt: new Date(),
-    };
-    console.log("rooms", rooms.get(ws.roomId).clients);
+    if (!rooms.get(ws.roomId)) return;
+    userLeft({ roomId: ws.roomId, userId: ws.id });
+    rooms.get(ws.roomId)?.peers.delete(ws.id);
+
+    delete rooms.get(ws.roomId).clients[ws.id];
     peers.delete(ws.id);
     const room = rooms.get(ws.roomId);
     if (room.consumerOfUser && room.consumerOfUser.get(ws.id)) {
@@ -139,6 +250,18 @@ wss.on("connection", function (ws) {
         consumers.delete(consumer);
       });
       room.consumerOfUser.delete(ws.id);
+    }
+
+    if (Object.keys(rooms.get(ws.roomId).clients).length === 0) {
+      rooms.delete(ws.roomId);
+      console.log(
+        peers.size,
+        consumers.size,
+        consumersScreenShare.size,
+        rooms.size
+      );
+
+      endMeeting({ roomId: ws.roomId });
     }
 
     wss.broadcast(
@@ -154,10 +277,50 @@ wss.on("connection", function (ws) {
   ws.on("message", async function (message) {
     const body = JSON.parse(message);
     ws.roomId = body.roomId;
-    // console.log(peers);
+
+    if (body.type !== "request-join") {
+      const room = rooms.get(body.roomId);
+      if (room && !room.allowList.has(ws.id)) {
+        ws.send(
+          JSON.stringify({
+            type: "request-join-error",
+            message: "You are not allowed to join this room",
+          })
+        );
+        return;
+      }
+    }
+
     switch (body.type) {
+      case "request-join": {
+        handleRequestJoin(body, ws);
+        break;
+      }
+      case "askToJoin/approve": {
+        const room = rooms.get(body.roomId);
+        const user = room.waitList.get(body.userId);
+        if (!user) return;
+        room.allowList.add(body.userId);
+        user.socket.send(
+          JSON.stringify({ type: "request-join-success", roomId: body.roomId })
+        );
+        room.waitList.delete(body.userId);
+        break;
+      }
+      case "askToJoin/reject": {
+        const room = rooms.get(body.roomId);
+        const user = room.waitList.get(body.userId);
+        if (!user) return;
+        user.socket.send(
+          JSON.stringify({
+            type: "request-join-error",
+            message: "Your request has been rejected",
+          })
+        );
+        room.waitList.delete(body.userId);
+        break;
+      }
       case "connect": {
-        console.log("connect");
         const existedRoom = rooms.get(body.roomId);
         if (!existedRoom) {
           const newSet = new Set();
@@ -172,20 +335,27 @@ wss.on("connection", function (ws) {
           id: body.uqid,
           connectedAt: new Date(),
         });
-        console.log(rooms.get(body.roomId).clients);
+
         peers.set(body.uqid, { socket: ws });
         const peer = createPeer();
         peers.get(body.uqid).user = body.user;
         peers.get(body.uqid).username = body.username;
         peers.get(body.uqid).peer = peer;
         peer.ontrack = (e) => {
-          console.log("ontrack");
           handleTrackEvent(body, e, body.uqid, ws);
         };
         const desc = new webrtc.RTCSessionDescription(body.sdp);
         await peer.setRemoteDescription(desc);
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
+
+        newUserJoin({
+          roomId: body.roomId,
+          user: {
+            userId: body.user.id,
+            ...body.user,
+          },
+        });
 
         const payload = {
           type: "answer",
@@ -197,8 +367,6 @@ wss.on("connection", function (ws) {
       }
 
       case "connect-screen-share": {
-        console.log("connect-screen-share");
-
         const existedRoomScreenShare = rooms.get(body.roomId);
         if (!existedRoomScreenShare) {
           return;
@@ -211,7 +379,6 @@ wss.on("connection", function (ws) {
           ws: ws,
         };
         peerScreenShare.ontrack = (e) => {
-          console.log("ontrack-screen-share");
           handleTrackEventScreenShare(body, e, body.roomId, ws);
         };
         const descScreenShare = new webrtc.RTCSessionDescription(body.sdp);
@@ -270,7 +437,6 @@ wss.on("connection", function (ws) {
         break;
       }
       case "ice": {
-        console.log("ice");
         const user = peers.get(body.uqid);
         if (user.peer)
           user.peer
@@ -285,7 +451,6 @@ wss.on("connection", function (ws) {
         //   user.peer
         //     .addIceCandidate(new webrtc.RTCIceCandidate(body.ice))
         //     .catch((e) => console.log(e));
-        console.log("ice-screen-share", body);
         const room = rooms.get(body.roomId);
         if (
           room &&
@@ -314,7 +479,6 @@ wss.on("connection", function (ws) {
             room.consumerOfUser.set(id, new Set());
           }
           room.consumerOfUser.get(id).add(consumerId);
-          console.log(room.consumerOfUser);
 
           const _desc = new webrtc.RTCSessionDescription(sdp);
           await consumers.get(consumerId).setRemoteDescription(_desc);
@@ -329,7 +493,6 @@ wss.on("connection", function (ws) {
             .createAnswer(function (desc) {
               desc.sdp = setBandwidthAudio(desc.sdp, 50);
               desc.sdp = setBandwidthVideo(desc.sdp, 256);
-              console.log("answer", desc.sdp);
               return desc;
             });
           await consumers.get(consumerId).setLocalDescription(_answer);
@@ -376,14 +539,12 @@ wss.on("connection", function (ws) {
             .createAnswer(function (desc) {
               desc.sdp = setBandwidthAudio(desc.sdp, 50);
               desc.sdp = setBandwidthVideo(desc.sdp, 50);
-              console.log("answer", desc.sdp);
               return desc;
             });
           await consumersScreenShare
             .get(consumerId)
             .setLocalDescription(_answer);
 
-          console.log("consume-screen-share");
           const _payload = {
             type: "consume-screen-share",
             sdp: consumersScreenShare.get(consumerId).localDescription,
@@ -419,7 +580,6 @@ wss.on("connection", function (ws) {
       }
 
       case "stop_screen_share": {
-        console.log("stop_screen_share");
         const room = rooms.get(body.roomId);
         if (
           room &&

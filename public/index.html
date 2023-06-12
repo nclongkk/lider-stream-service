@@ -25,52 +25,53 @@
       id="username"
       onchange="usernameInputOnChange()"
       placeholder="enter your username"
-    /><button id="connect" disabled>Connect</button>
+    /><button id="connect">Connect</button>
     <br />
-    <div id="lider-container"></div>
+    <div id="lider-container" style="width: 100vh; height: 100vh"></div>
     <div id="remote_videos"></div>
-    <script src="https://localhost:5001/simple-sfu-client.js"></script>
+    <!-- <script src="https://localhost:5001/simple-sfu-client.js"></script> -->
+    <script src="https://localhost:5001/public-sdk.js"></script>
     <script>
       const roomIdInput = document.querySelector("#room_id");
       const connectBtn = document.querySelector("#connect");
       const inviteBtn = document.querySelector("#invite");
       const remoteContainer = document.querySelector("#remote_videos");
       const liderContainer = document.querySelector("#lider-container");
-      const lider = new LiderClient(liderContainer);
-      let isConnect = false;
-      lider.on("onConnected", () => {
-        isConnect = true;
-        checkEnableConnectBtn();
+      const lider = new LiderClient("lider-container");
 
-        connectBtn.addEventListener("click", () =>
-          lider.connect({
-            roomId: roomIdInput.value,
-            user: {
-              video: true,
-              audio: false,
-              username: username.value,
-              avatar: undefined,
-              // avatar: `https://ui-avatars.com/api/?name=${username.value
-              //   .split(" ")
-              //   .join("+")}&background=random&length=1&rounded=true&size=200}`,
-              metadata: {
-                id: "2123123123",
-              },
+      connectBtn.addEventListener("click", () => {
+        console.log("connect");
+        lider.join({
+          accessType: "askToJoin",
+          roomId: roomIdInput.value,
+          token:
+            "eyJ1c2VySWQiOiI2NDQxNWY1ZDhmM2UxYmE2OTE0NmNhNjEiLCJnZW5Ub2tlbkF0IjoiMjAyMy0wNS0wOFQxMDo1NzoxOC45MDFaIn0=!+zg2FP9KhSSKAEkY5UvaFqP9/THEKzY/tIKJFiD7tJ4=",
+          user: {
+            video: true,
+            audio: true,
+            username: username.value,
+            avatar: undefined,
+            metadata: {
+              id: "2123123123",
             },
-          })
-        );
+          },
+        });
       });
+      // lider.on("onConnected", () => {
+      //   // checkEnableConnectBtn();
 
-      // function getRoomId() {
-      //   let roomId = uuidv4();
-      //   try {
-      //     roomId = window.location.search.match(/roomId=([^&]+)å/)[1];
-      //   } catch (error) {}
-      //   return roomId;
-      // }
+      // });
+
+      function getRoomId() {
+        let roomId = uuidv4();
+        try {
+          roomId = window.location.search.match(/roomId=([^&]+)å/)[1];
+        } catch (error) {}
+        return roomId;
+      }
       if (window.location.search.match(/roomId=([^&]+)/)) {
         roomIdInput.value = window.location.search.match(/roomId=([^&]+)/)[1];
-        checkEnableConnectBtn();
+        // checkEnableConnectBtn();
       }
 
       function copyInviteUrl() {
@@ -78,13 +79,13 @@
         navigator.clipboard.writeText(url);
       }
 
-      function checkEnableConnectBtn() {
-        const canConnect = isConnect && roomIdInput.value && username.value;
-        if (canConnect) {
-          connectBtn.disabled = false;
-          inviteBtn.disabled = false;
-        }
-      }
+      // function checkEnableConnectBtn() {
+      //   const canConnect = isConnect && roomIdInput.value && username.value;
+      //   if (canConnect) {
+      //     connectBtn.disabled = false;
+      //     inviteBtn.disabled = false;
+      //   }
+      // }
 
       function roomInputOnChange() {
         if (roomIdInput.value.split("").length < 35) {
@@ -111,7 +112,7 @@
       function generateRoomUUID() {
         const newRoomId = uuidv4();
         roomIdInput.value = newRoomId;
-        checkEnableConnectBtn();
+        // checkEnableConnectBtn();
       }
 
       function uuidv4() {

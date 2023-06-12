@@ -29,7 +29,80 @@
     />
   </head>
   <!-- <body scroll="no" style="overflow: hidden"> -->
-  <body scroll="no"></body>
+  <body scroll="no">
+    <div id="toasts" class="absolute right-10 top-10 z-10 flex flex-col"></div>
+
+    <div id="lider-main">
+      <div id="lider-meeting-area">
+        <div id="lider-video-area">
+          <div id="lider-videos"></div>
+        </div>
+        <div id="lider-toolbox">
+          <div id="lider-toolbox-left" class="lider-toolbox-button-container">
+            <button id="lider-toogle-audio" class="lider-toolbox-button">
+              <i
+                id="lider-audio-icon"
+                class="fa fa-solid fa-microphone fa-beat fa-2xl"
+                style="color: #ffffff"
+              ></i>
+              Audio
+            </button>
+            <button id="lider-toggle-video" class="lider-toolbox-button">
+              <i
+                id="lider-video-icon"
+                class="fa fa-solid fa-video fa-2xl"
+                style="color: #ffffff"
+              ></i>
+              Video
+            </button>
+            <div class="relative">
+              <button id="lider-copy-invite-url" class="lider-toolbox-button">
+                <i
+                  id="lider-video-icon"
+                  class="fa fa-solid fa-link fa-2xl"
+                  style="color: #ffffff"
+                ></i>
+                Invite
+              </button>
+              <div>
+                <div
+                  id="lider-invite-url"
+                  class="absolute bg-white bottom-14 left-2 rounded-md shadow-md p-2 flex"
+                >
+                  <input
+                    id="lider-invite-url-input"
+                    type="text"
+                    readonly="readonly"
+                    value="https://localhost:5001/meet"
+                    class="rounded-md px-2 py-1 w-30 text-sm"
+                  />
+                  <button
+                    id="lider-invite-url-copy"
+                    class="ml-2 px-2 py-1 rounded-md bg-blue-500 text-white text-sm"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="lider-toolbox-center" class="lider-toolbox-button-container">
+            <button id="lider-hangup" class="lider-toolbox-button">
+              Hang up
+            </button>
+          </div>
+          <div id="lider-toolbox-right" class="lider-toolbox-button-container">
+            <button id="lider-fullscreen" class="lider-toolbox-button">
+              Full Screen
+            </button>
+            <button id="lider-share-screen" class="lider-toolbox-button">
+              Share screen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
   <div
     class="relative z-10 lider-modal hidden"
     aria-labelledby="modal-title"

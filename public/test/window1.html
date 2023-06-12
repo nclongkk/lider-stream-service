@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Document</title>
+  </head>
+
+  <body>
+    <h1>This is window 1</h1>
+    <div id="container" style="height: 500px"></div>
+    <button onClick="sendHello()">Send hello to window 2</button>
+  </body>
+</html>
+
+<script>
+  function sendHello() {
+    const container = document.querySelector("#container");
+    const iframe = document.createElement("iframe");
+    iframe.src = "https://localhost:5001/meet";
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
+    iframe.allow =
+      "camera; microphone; fullscreen; display-capture; clipboard-write; clipboard-read";
+
+    iframe.addEventListener("load", function () {
+      iframe.contentWindow.postMessage(
+        '{"accessType":"askToJoin","inviteUrl": "http://localhost:300/23423e32","token": "eyJ1c2VySWQiOiI2NDQxNWY1ZDhmM2UxYmE2OTE0NmNhNjEiLCJnZW5Ub2tlbkF0IjoiMjAyMy0wNS0wOFQxMDo1NzoxOC45MDFaIn0=!+zg2FP9KhSSKAEkY5UvaFqP9/THEKzY/tIKJFiD7tJ4=","webUrl":"localhost:3002","roomId":"123123123123132","user":{"video":true,"audio":false,"username":"long1683364441140","metadata":{"id":"2123123123"}}}',
+        "https://localhost:5001/meet"
+      );
+    });
+
+    container.appendChild(iframe);
+  }
+</script>

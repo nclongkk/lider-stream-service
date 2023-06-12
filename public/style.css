@@ -293,9 +293,7 @@ header h1 {
   background: #555;
 }
 
-/* Screen */
 .Screen {
-  /* flex: 3; */
   width: 80%;
   background: transparent;
   opacity: 1;
@@ -313,7 +311,6 @@ header h1 {
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
-/* Animation of Cameras */
 @keyframes show {
   0% {
     opacity: 0;
@@ -328,7 +325,6 @@ header h1 {
 
 .lider-camera {
   position: relative;
-  /* background-color: #3f4461; */
 }
 
 .lider-camera-video {

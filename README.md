@@ -1,21 +1,21 @@
-# Simple SFU
+# Lider SFU server
 
-A very simple sfu application
+A WebRTC SFU server of Lider system
 
-**Installation:**
+## How to run
 
-```
-npm install
-```
-
-**Start the server:**
+1. Generate cert file and key file to start https server
 
 ```
-npm start
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 ```
 
-**In the browser (locally):**
+2. Add directory of these file to env
+   <br>
+   Example:
 
 ```
-http://localhost:5001
+HTTPS_CERT_FILE=/cert.pem
+
+HTTPS_KEY_FILE=/key.pem
 ```

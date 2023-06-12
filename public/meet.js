@@ -1,5 +1,3 @@
-"use strict";
-
 const _EVENTS = {
   onLeave: "onLeave",
   onJoin: "onJoin",
@@ -12,11 +10,32 @@ const _EVENTS = {
   onConnected: "onConnected",
   onRemoteTrack: "onRemoteTrack",
 };
+let lider;
+window.addEventListener("message", function (event) {
+  console.log("meet.js received message", event.data);
+  if (event.data) {
+    const data = JSON.parse(event.data);
+    console.log(data);
+    // const msg = JSON.parse(msgOutsite);
+    lider = new LiderClient();
+    lider.user = data.user;
+    lider.roomId = data.roomId;
+    lider.accessType = data.accessType;
+    lider.token = data.token;
+    lider.webUrl = data.webUrl;
+    lider.inviteUrl = data.inviteUrl;
+    console.log("lider", lider);
+    // lider.requestJoin({
+    //   roomId: data.roomId,
+    //   user: data.user,
+    //   accessType: "askToJoin",
+    // });
+  }
+});
 
 class LiderClient {
-  constructor(container) {
+  constructor() {
     const defaultSettings = {
-      port: 5001,
       configuration: {
         iceServers: [
           { urls: "stun:stun.stunprotocol.org:3478" },
@@ -25,8 +44,8 @@ class LiderClient {
       },
     };
 
-    this.liderView = null;
-    this.liderContainer = container;
+    this.serverDomain = "localhost:5001";
+
     this.roomId = null;
     this.settings = Object.assign({}, defaultSettings);
     this._isOpen = false;
@@ -41,6 +60,17 @@ class LiderClient {
     this.user = null;
     this.localShareScreenStream = null;
     this.consumerScreenShare = null;
+    this.accessType = null;
+    this.token = null;
+    this.inviteUrl = null;
+
+    // this.liderView = new LiderView(document.getElementById("lider-videos"));
+    // this.liderView.append();
+    // this.liderView.resize();
+
+    // window.addEventListener("resize", () => {
+    //   this.liderView.resize();
+    // });
 
     Object.keys(_EVENTS).forEach((event) => {
       this.eventListeners.set(event, []);
@@ -52,7 +82,9 @@ class LiderClient {
 
   initWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = `${protocol}://${window.location.hostname}:${this.settings.port}`;
+    // console.log(url);
+    // const url = "wss://localhost:5001";
+    const url = `wss://${this.serverDomain}`;
     this.connection = new WebSocket(url);
     this.connection.onmessage = (data) => this.handleMessage(data);
     this.connection.onclose = () => this.handleClose();
@@ -84,10 +116,6 @@ class LiderClient {
     return _isOpen;
   }
 
-  findUserVideo(username) {
-    return document.querySelector(`#remote_${username}`);
-  }
-
   async handleRemoteTrack(stream, user) {
     if (!user.username) {
       console.log("not enough data ", user);
@@ -96,9 +124,7 @@ class LiderClient {
     this.liderView?.addOneCamera(user, stream);
     console.log("handleRemoteTrack", user);
     if (user.id !== this.localUUID && !user.audio) {
-      const iframe = document.getElementById("lider-iframe");
-
-      const camera = iframe.contentWindow.document.getElementById(user.id);
+      const camera = document.getElementById(user.id);
       const divAudio = camera.getElementsByClassName(
         "lider-audio-bottom-right"
       )[0];
@@ -107,32 +133,6 @@ class LiderClient {
       divAudio.style.background = "#00000070";
       audioIconCamera.classList = "fas fa-microphone-slash";
     }
-    // const userVideo = this.findUserVideo(username);
-    // if (userVideo) {
-    //   userVideo.srcObject.addTrack(stream.getTracks()[0]);
-    // } else {
-    //   const video = document.createElement("video");
-    //   video.id = `remote_${username}`;
-    //   video.srcObject = stream;
-    //   video.autoplay = true;
-    //   video.muted = username == this.username;
-
-    //   const div = document.createElement("div");
-    //   div.id = `user_${username}`;
-    //   div.classList.add("videoWrap");
-
-    //   const nameContainer = document.createElement("div");
-    //   nameContainer.classList.add("display_name");
-    //   const textNode = document.createTextNode(username);
-    //   nameContainer.appendChild(textNode);
-    //   div.appendChild(nameContainer);
-    //   div.appendChild(video);
-    //   document.querySelector(".videos-inner").appendChild(div);
-
-    //   this.trigger(_EVENTS.onRemoteTrack, stream);
-    // }
-
-    // this.recalculateLayout();
   }
 
   async handleIceCandidate({ candidate }) {
@@ -235,13 +235,45 @@ class LiderClient {
     await this.consumeOnce(user);
   }
 
+  sendRequestJoin() {
+    if (this.accessType === "askToJoin") {
+      this.renderWaitingScreen();
+    }
+
+    this.connection.send(
+      JSON.stringify({
+        type: "request-join",
+        token: this.token,
+        webUrl: this.webUrl,
+        roomId: this.roomId,
+        user: this.user,
+        accessType: this.accessType,
+      })
+    );
+  }
+
   handleMessage({ data }) {
     const message = JSON.parse(data);
-
     switch (message.type) {
       case "welcome":
         this.localUUID = message.id;
+        this.user.id = message.id;
+        this.sendRequestJoin();
         break;
+
+      case "request-join-success":
+        this.handleRequestJoinSuccess(message);
+        break;
+
+      case "request-join-error": {
+        this.renderErrorScreen(message.message);
+        break;
+      }
+
+      case "askToJoin/someone-request-join":
+        this.handleSORequestJoin(message);
+        break;
+
       case "answer":
         this.handleAnswer(message);
         break;
@@ -281,19 +313,43 @@ class LiderClient {
     }
   }
 
+  handleSORequestJoin(message) {
+    const approveFn = (userId) => {
+      this.connection.send(
+        JSON.stringify({
+          type: "askToJoin/approve",
+          roomId: this.roomId,
+          userId,
+        })
+      );
+      this.removeToast(userId);
+    };
+
+    const rejectFn = (userId) => {
+      this.connection.send(
+        JSON.stringify({
+          type: "askToJoin/reject",
+          roomId: this.roomId,
+          userId,
+        })
+      );
+      this.removeToast(userId);
+    };
+
+    this.renderToast(message.user, approveFn, rejectFn);
+  }
+
   handleRemoteUserUpdate(body) {
     if (body.user.id === this.localUUID) return;
     if (body.action === "toggleVideo") {
-      const iframe = document.getElementById("lider-iframe");
-      const camera = iframe.contentWindow.document.getElementById(body.user.id);
+      const camera = document.getElementById(body.user.id);
       const video = camera.getElementsByTagName("video")[0];
 
       video.style.visibility = body.user.video ? "visible" : "hidden";
     }
 
     if (body.action === "toggleAudio") {
-      const iframe = document.getElementById("lider-iframe");
-      const camera = iframe.contentWindow.document.getElementById(body.user.id);
+      const camera = document.getElementById(body.user.id);
       const divAudio = camera.getElementsByClassName(
         "lider-audio-bottom-right"
       )[0];
@@ -322,200 +378,100 @@ class LiderClient {
     this.liderView?.deleteCamera(id);
   }
 
-  initLayout(liderContainer) {
-    const layout = liderContainer;
-    //set layout size
-    layout.style.width = "1500px";
-    layout.style.height = "900px";
-    //insert an ifram into layout
-    const iframe = document.createElement("iframe");
-    iframe.id = "lider-iframe";
-    iframe.src = "https://localhost:5001/meet";
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
-    layout?.appendChild(iframe);
+  requestJoin({ roomId, user, accessType }) {
+    if (accessType === "askToJoin") {
+      this.renderWaitingScreen();
+    }
 
-    iframe.onload = () => {
-      let scenary =
-        iframe.contentWindow.document.getElementById("lider-videos");
-      this.liderView = new LiderView(scenary);
-      this.liderView.append();
-      this.liderView.resize();
+    this.roomId = roomId;
+    this.user = user;
+    this.user.id = this.localUUID;
+    this.connection.send(
+      JSON.stringify({
+        type: "request-join",
+        roomId,
+        user,
+        accessType,
+      })
+    );
+  }
 
-      window.addEventListener("resize", () => {
-        this.liderView.resize();
-      });
-    };
-    // const divLiderMeetingArea = document.createElement("div");
-    // divLiderMeetingArea.id = "lider-meeting-area";
-    // layout?.appendChild(divLiderMeetingArea);
+  handleRequestJoinSuccess(message) {
+    this.roomId = message.roomId;
+    console.log("request-join-success", this.roomId);
 
-    // const liderVideoArea = document.createElement("div");
-    // liderVideoArea.id = "remote_videos";
-    // divLiderMeetingArea.appendChild(liderVideoArea);
+    this.connect({ roomId: this.roomId, user: this.user });
+  }
 
-    // const liderToolbox = document.createElement("div");
-    // liderToolbox.id = "lider-toolbox";
-    // divLiderMeetingArea.appendChild(liderToolbox);
-
-    // // liderToolbox inclule div liderToolboxLeft, liderToolboxCenter and liderToolboxRight, liderToolboxLeft include 2 buttons audio and video, liderToolboxCenter include 1 button hangup, liderToolboxRight include 1 button screen share, 3 div liderToolboxLeft, liderToolboxCenter and liderToolboxRight has the same class lider-toolbox-button-container
-    // const liderToolboxLeft = document.createElement("div");
-    // liderToolboxLeft.classList.add("lider-toolbox-button-container");
-    // liderToolboxLeft.id = "lider-toolbox-left";
-    // liderToolbox.appendChild(liderToolboxLeft);
-
-    // const liderToolboxCenter = document.createElement("div");
-    // liderToolboxCenter.classList.add("lider-toolbox-button-container");
-    // liderToolboxCenter.id = "lider-toolbox-center";
-    // liderToolbox.appendChild(liderToolboxCenter);
-
-    // const liderToolboxRight = document.createElement("div");
-    // liderToolboxRight.classList.add("lider-toolbox-button-container");
-    // liderToolboxRight.id = "lider-toolbox-right";
-    // liderToolbox.appendChild(liderToolboxRight);
-
-    // const audio = document.createElement("button");
-    // audio.classList.add("lider-toolbox-button");
-    // audio.id = "lider-toogle-audio";
-    // audio.innerHTML = "Audio";
-    // audio.addEventListener("click", () => this.toggleAudio());
-
-    // const video = document.createElement("button");
-    // video.classList.add("lider-toolbox-button");
-    // video.id = "lider-toogle-video";
-    // video.innerHTML = "Video";
-    // video.addEventListener("click", () => this.toggleVideo());
-
-    // const hangup = document.createElement("button");
-    // hangup.classList.add("lider-toolbox-button");
-    // hangup.id = "lider-hangup";
-    // hangup.innerHTML = "Hangup";
-    // hangup.addEventListener("click", () => this.hangup());
-
-    // const screenShare = document.createElement("button");
-    // screenShare.classList.add("lider-toolbox-button");
-    // screenShare.id = "lider-share-screen";
-    // screenShare.innerHTML = "Screen Share";
-    // screenShare.addEventListener("click", () => this.shareScreen());
-
-    // liderToolboxLeft.appendChild(audio);
-    // liderToolboxLeft.appendChild(video);
-    // liderToolboxCenter.appendChild(hangup);
-    // liderToolboxRight.appendChild(screenShare);
-
-    //--------------------------------------------------------------------------------
-    // const layout = document.getElementById("remote_videos");
-    // //add a div tag with class name videos-inner
-    // const videosInner = document.createElement("div");
-    // videosInner.classList.add("videos-inner");
-    // layout.appendChild(videosInner);
-
-    // //add a div tag with class name toolbox
-    // const toolbox = document.createElement("div");
-    // toolbox.classList.add("toolbox");
-    // layout.appendChild(toolbox);
-
-    // // add 4 buttons mic, video, screen share and end call
-    // const mic = document.createElement("button");
-    // mic.classList.add("mic");
-    // mic.innerHTML = "Mic";
-    // mic.addEventListener("click", () => this.toggleAudio());
-
-    // const video = document.createElement("button");
-    // video.classList.add("video");
-    // video.innerHTML = "Video";
-    // video.addEventListener("click", () => this.toggleVideo());
-
-    // const screenShare = document.createElement("button");
-    // screenShare.classList.add("screen-share");
-    // screenShare.innerHTML = "Screen Share";
-    // screenShare.addEventListener("click", () => this.shareScreen());
-
-    // const endCall = document.createElement("button");
-    // endCall.classList.add("end-call");
-    // endCall.innerHTML = "End Call";
-    // endCall.addEventListener("click", () => window.close());
-
-    // toolbox.appendChild(mic);
-    // toolbox.appendChild(video);
-    // toolbox.appendChild(screenShare);
-    // toolbox.appendChild(endCall);
+  hangup() {
+    //close all peer
+    this.localPeer.close();
+    this.localPeer = null;
+    this.localStream.getTracks().forEach((track) => track.stop());
+    this.localStream = null;
+    this.consumers.forEach((consumer) => {
+      consumer.close();
+    });
+    this.connection?.close();
+    this.renderHangup();
   }
 
   async connect({ roomId, user }) {
     //Produce media
+    this.renderMeeting();
+
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
+    setTimeout(() => {
+      document
+        .getElementById("lider-toggle-video")
+        .addEventListener("click", () => this.toggleVideo());
+      document
+        .getElementById("lider-toogle-audio")
+        .addEventListener("click", () => this.toggleAudio());
 
-    const layout = this.liderContainer;
-    //set layout size
-    layout.style.width = "100%";
-    layout.style.height = "900px";
-    //insert an ifram into layout
-    const iframe = document.createElement("iframe");
-    iframe.id = "lider-iframe";
-    iframe.src = "https://localhost:5001/meet";
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
-    // attach the iframe to the layout
-    layout?.appendChild(iframe);
+      document
+        .getElementById("lider-share-screen")
+        .addEventListener("click", () => this.shareScreen());
+      if (!user.video) {
+        stream.getVideoTracks()[0].enabled = false;
+        this.disableVideo();
+      }
 
-    iframe.onload = () => {
-      let scenary =
-        iframe.contentWindow.document.getElementById("lider-videos");
-      this.liderView = new LiderView(scenary);
-      this.liderView.append();
-      this.liderView.resize();
+      if (!user.audio) {
+        stream.getAudioTracks()[0].enabled = false;
+        this.disableAudio();
+      }
+    }, 50);
 
-      window.addEventListener("resize", () => {
-        this.liderView.resize();
-      });
+    this.handleRemoteTrack(stream, this.user);
+    this.localStream = stream;
 
-      setTimeout(() => {
-        iframe.contentWindow.document
-          .getElementById("lider-toggle-video")
-          .addEventListener("click", () => this.toggleVideo());
-        iframe.contentWindow.document
-          .getElementById("lider-toogle-audio")
-          .addEventListener("click", () => this.toggleAudio());
+    this.localPeer = this.createPeer();
+    this.localStream
+      .getTracks()
+      .forEach((track) => this.localPeer.addTrack(track, this.localStream));
+    this.subscribe();
+  }
 
-        iframe.contentWindow.document
-          .getElementById("lider-share-screen")
-          .addEventListener("click", () => this.shareScreen());
-        if (!user.video) {
-          stream.getVideoTracks()[0].enabled = false;
-          this.disableVideo();
-        }
-
-        if (!user.audio) {
-          stream.getAudioTracks()[0].enabled = false;
-          this.disableAudio();
-        }
-      }, 500);
-
-      user.id = this.localUUID;
-      this.user = user;
-      this.username = user.username;
-      this.roomId = roomId;
-      this.handleRemoteTrack(stream, this.user);
-      this.localStream = stream;
-
-      this.localPeer = this.createPeer();
-      this.localStream
-        .getTracks()
-        .forEach((track) => this.localPeer.addTrack(track, this.localStream));
-      this.subscribe();
-    };
+  copyInviteUrl() {
+    console.log("copyInviteUrl", this.inviteUrl);
+    // copy this.inviteUrl to clipboard
+    navigator.clipboard.writeText(this.inviteUrl);
+    this.renderNotification({
+      msg: "Invite url copied",
+      iconUrl:
+        "https://cdn.iconscout.com/icon/free/png-256/checkmark-441-461824.png",
+      ttl: 4000,
+    });
   }
 
   enableAudio() {
-    const iframe = document.getElementById("lider-iframe");
-    const audioIcon =
-      iframe.contentWindow.document.getElementById("lider-audio-icon");
+    const audioIcon = document.getElementById("lider-audio-icon");
 
-    const camera = iframe.contentWindow.document.getElementById(this.localUUID);
+    const camera = document.getElementById(this.localUUID);
     const divAudio = camera.getElementsByClassName(
       "lider-audio-bottom-right"
     )[0];
@@ -535,11 +491,10 @@ class LiderClient {
   }
 
   disableAudio() {
-    const iframe = document.getElementById("lider-iframe");
-    const audioIcon =
-      iframe.contentWindow.document.getElementById("lider-audio-icon");
+    const audioIcon = document.getElementById("lider-audio-icon");
 
-    const camera = iframe.contentWindow.document.getElementById(this.localUUID);
+    const camera = document.getElementById(this.localUUID);
+    console.log(camera);
     const divAudio = camera.getElementsByClassName(
       "lider-audio-bottom-right"
     )[0];
@@ -555,6 +510,133 @@ class LiderClient {
       audioIcon.classList.toggle("fa-microphone-slash");
       this.localStream.getAudioTracks()[0].enabled = false;
     }
+  }
+
+  getMemoDivNotifications() {
+    let divNotification = document.getElementById("lider-notifications");
+    if (!divNotification) {
+      divNotification = document.createElement("div");
+      divNotification.id = "lider-notifications";
+      divNotification.style.position = "absolute";
+      divNotification.style.top = "10px";
+      divNotification.style.right = "10px";
+      divNotification.style.zIndex = "10";
+    }
+    return divNotification;
+  }
+
+  renderNotification({ msg, iconUrl, ttl = 3000 }) {
+    const divNotification = this.getMemoDivNotifications();
+    const memoHtml = `<div
+        id="lider-notification"
+        style="
+          background-color: #ffffff;
+          border-radius: 8px;
+          display: flex;
+          flex-direction: row;
+          padding: 1rem;
+          align-items: center;
+          box-shadow: 0px 0px 10px 0px #00000060;
+        "
+      >
+        <img
+          src="${iconUrl}"
+          alt=""
+          style="width: 20px; height: 20px; margin-right: 1rem"
+        />
+        <div
+          style="
+            border-left: #00000030;
+            border-left-style: solid;
+            border-left-width: 1px;
+            padding-left: 1rem;
+          "
+        >
+          <p style="padding: 4px; color: #00000090">
+            ${msg}
+          </p>
+        </div>
+      </div>`;
+    divNotification.innerHTML = memoHtml;
+
+    document.body.appendChild(divNotification);
+    setTimeout(() => {
+      const animationView = document.getElementById("lider-notifications");
+      animationView.innerHTML = "";
+    }, ttl);
+  }
+
+  renderToast(user, approveFn, rejectFn) {
+    const html = `
+    <div
+        id="toast-${user.id}"
+        class="w-full max-w-xs p-4 text-gray-500 bg-white rounded-lg shadow dark:bg-gray-800 dark:text-gray-400 my-4"
+        role="alert"
+      >
+        <div class="flex">
+          <div
+            class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-blue-500 bg-blue-100 rounded-lg dark:text-blue-300 dark:bg-blue-900"
+          >
+            <img
+              class="w-8 h-8 rounded-full"
+              src="${user.avatar}"
+              alt=""
+            />
+          </div>
+          <div class="ml-3 text-sm font-normal">
+            <span
+              class="mb-1 text-sm font-semibold text-gray-900 dark:text-white"
+              >New join request</span
+            >
+            <div class="mb-2 text-sm font-normal">
+              ${user.username} wants to join your team. What do you want to do?
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <a
+                  id="accept-${user.id}"
+                  href="#"
+                  class="inline-flex justify-center w-full px-2 py-1.5 text-xs font-medium text-center text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800"
+                  >Approve</a
+                >
+              </div>
+              <div>
+                <a
+                  id="reject-${user.id}"
+                  href="#"
+                  class="inline-flex justify-center w-full px-2 py-1.5 text-xs font-medium text-center text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 dark:bg-gray-600 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:border-gray-700 dark:focus:ring-gray-700"
+                  >Reject</a
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const toast = document.getElementById("toasts");
+    toast.innerHTML = html + toast.innerHTML;
+
+    const accept = document.getElementById("accept-" + user.id);
+    const reject = document.getElementById("reject-" + user.id);
+
+    accept.addEventListener("click", () => {
+      console.log(event?.srcElement.id);
+      //split acept-id to id
+      const id = event?.srcElement.id.split("accept-")[1];
+      approveFn(id);
+    });
+
+    reject.addEventListener("click", () => {
+      console.log(event?.srcElement.id);
+      const id = event?.srcElement.id.split("reject-")[1];
+      rejectFn(id);
+    });
+  }
+
+  removeToast(userId) {
+    console.log(userId);
+    const toast = document.getElementById(`toast-${userId}`);
+    toast.remove();
   }
 
   toggleAudio() {
@@ -576,9 +658,7 @@ class LiderClient {
   }
 
   enableVideo() {
-    const iframe = document.getElementById("lider-iframe");
-    const videoIcon =
-      iframe.contentWindow.document.getElementById("lider-video-icon");
+    const videoIcon = document.getElementById("lider-video-icon");
     if (
       this.user.video &&
       videoIcon.classList.value.includes("fa-video-slash")
@@ -588,16 +668,14 @@ class LiderClient {
       this.localStream.getVideoTracks()[0].enabled = true;
     }
 
-    const camera = iframe.contentWindow.document.getElementById(this.localUUID);
+    const camera = document.getElementById(this.localUUID);
     // get the video element
     const video = camera.getElementsByTagName("video")[0];
     video.style.visibility = "visible";
   }
 
   disableVideo() {
-    const iframe = document.getElementById("lider-iframe");
-    const videoIcon =
-      iframe.contentWindow.document.getElementById("lider-video-icon");
+    const videoIcon = document.getElementById("lider-video-icon");
     if (
       !this.user.video &&
       !videoIcon.classList.value.includes("fa-video-slash")
@@ -607,7 +685,7 @@ class LiderClient {
       this.localStream.getVideoTracks()[0].enabled = false;
     }
 
-    const camera = iframe.contentWindow.document.getElementById(this.localUUID);
+    const camera = document.getElementById(this.localUUID);
     const video = camera.getElementsByTagName("video")[0];
     video.style.visibility = "hidden";
   }
@@ -690,18 +768,6 @@ class LiderClient {
         return v.toString(16);
       }
     );
-  }
-
-  recalculateLayout() {
-    const container = remoteContainer;
-    const videoContainer = document.querySelector(".videos-inner");
-    const videoCount = container.querySelectorAll(".videoWrap").length;
-
-    if (videoCount >= 3) {
-      videoContainer.style.setProperty("--grow", 0 + "");
-    } else {
-      videoContainer.style.setProperty("--grow", 1 + "");
-    }
   }
 
   // Script for screen sharing
@@ -843,9 +909,7 @@ class LiderClient {
   }
 
   renderPopup({ title, msg }) {
-    const iframe = document.getElementById("lider-iframe");
-    const modal =
-      iframe.contentWindow.document.getElementsByClassName("lider-modal")[0];
+    const modal = document.getElementsByClassName("lider-modal")[0];
     modal.getElementsByTagName("p")[0].innerHTML = msg;
     modal.getElementsByTagName("h3")[0].innerHTML = title;
     modal.classList.remove("ease-in");
@@ -879,6 +943,191 @@ class LiderClient {
       })
     );
   }
+
+  renderWaitingScreen() {
+    const body = document.getElementsByTagName("body")[0];
+    const html = `  <div class="flex items-center justify-center h-screen">
+      <div class="centered-div flex flex-col items-center">
+        <img
+          src="${this.user.avatar}"
+          alt="logo"
+          class="w-32 h-32 rounded-full shadow-md ring-2 ring-gray-300"
+        />
+        <p class="my-8">
+          You are in the waiting room. Please wait for the host to let you in.
+        </p>
+        <div role="status">
+          <svg
+            aria-hidden="true"
+            class="w-8 h-8 mr-2 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600"
+            viewBox="0 0 100 101"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+              fill="currentColor"
+            />
+            <path
+              d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+              fill="currentFill"
+            />
+          </svg>
+          <span class="sr-only">Loading...</span>
+        </div>
+      </div>
+    </div>`;
+    body.innerHTML = html;
+  }
+
+  renderErrorScreen(errorMsg) {
+    const body = document.getElementsByTagName("body")[0];
+    const html = `
+       <div class="flex items-center justify-center h-screen">
+      <img
+        src="https://cdn.pixabay.com/photo/2017/02/12/21/29/false-2061132_1280.png"
+        alt="hangup"
+        class="w-32 h-32 mr-8"
+      />
+
+      <p>
+        <span class="text-2xl">
+          ${errorMsg}
+        </span>
+        <br />
+      </p>
+    </div>
+    `;
+    body.innerHTML = html;
+  }
+
+  renderMeeting() {
+    const body = document.getElementsByTagName("body")[0];
+    const html = `<div id="toasts" class="absolute right-10 top-10 z-10 flex flex-col"></div>
+
+    <div id="lider-main">
+      <div id="lider-meeting-area">
+        <div id="lider-video-area">
+          <div id="lider-videos"></div>
+        </div>
+        <div id="lider-toolbox">
+          <div id="lider-toolbox-left" class="lider-toolbox-button-container">
+            <button id="lider-toogle-audio" class="lider-toolbox-button">
+              <i
+                id="lider-audio-icon"
+                class="fa fa-solid fa-microphone fa-beat fa-2xl"
+                style="color: #ffffff"
+              ></i>
+              Audio
+            </button>
+            <button id="lider-toggle-video" class="lider-toolbox-button">
+              <i
+                id="lider-video-icon"
+                class="fa fa-solid fa-video fa-2xl"
+                style="color: #ffffff"
+              ></i>
+              Video
+            </button>
+            ${
+              !!this.inviteUrl
+                ? `<div class="relative">
+              <button id="lider-copy-invite-url" class="lider-toolbox-button">
+                <i
+                  id="lider-video-icon"
+                  class="fa fa-solid fa-link fa-2xl"
+                  style="color: #ffffff"
+                ></i>
+                Invite
+              </button>
+              <div>
+                <div
+                  id="lider-invite-url"
+                  class="hidden absolute bg-white bottom-14 left-2 rounded-md shadow-md p-2 flex"
+                >
+                  <input
+                    id="lider-invite-url-input"
+                    type="text"
+                    readonly="readonly"
+                    value="${this.inviteUrl}"
+                    class="rounded-md px-2 py-1 w-30 text-sm"
+                  />
+                  <button
+                    id="lider-invite-url-copy"
+                    class="ml-2 px-2 py-1 rounded-md bg-blue-500 text-white text-sm"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>`
+                : ""
+            }
+          </div>
+          <div id="lider-toolbox-center" class="lider-toolbox-button-container">
+            <button id="lider-hangup" class="lider-toolbox-button">
+              Hang up
+            </button>
+          </div>
+          <div id="lider-toolbox-right" class="lider-toolbox-button-container">
+            <button id="lider-fullscreen" class="lider-toolbox-button">
+              Full Screen
+            </button>
+            <button id="lider-share-screen" class="lider-toolbox-button">
+              Share screen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    body.innerHTML = html;
+
+    const inviteBtn = document.getElementById("lider-copy-invite-url");
+    inviteBtn?.addEventListener("click", () => {
+      const inviteUrl = document.getElementById("lider-invite-url");
+      inviteUrl.classList.toggle("hidden");
+
+      const copyBtn = document.getElementById("lider-invite-url-copy");
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(this.inviteUrl);
+        this.renderNotification({
+          msg: "Invite url copied",
+          iconUrl: "https://cdn-icons-png.flaticon.com/512/178/178921.png",
+          ttl: 4000,
+        });
+      });
+    });
+
+    this.liderView = new LiderView(document.getElementById("lider-videos"));
+    this.liderView.append();
+    this.liderView.resize();
+
+    window.addEventListener("resize", () => {
+      this.liderView.resize();
+    });
+
+    const hangup = document.getElementById("lider-hangup");
+    hangup.addEventListener("click", () => this.hangup());
+  }
+
+  renderHangup() {
+    const body = document.getElementsByTagName("body")[0];
+    const html = `<div class="flex items-center justify-center h-screen">
+      <img
+        src="https://icons.veryicon.com/png/o/miscellaneous/cloud-call-center/hang-up.png"
+        alt="hangup"
+        class="w-32 h-32 mr-8"
+      />
+
+      <p>
+        <span class="text-2xl">
+          Your call has ended. Thank you for using our service!
+        </span>
+        <br />
+        <span class="text-gray-500">You can close this tab</span>
+      </p>
+    </div>`;
+    body.innerHTML = html;
+  }
 }
 
 class LiderView {
@@ -897,6 +1146,7 @@ class LiderView {
 
   // create dish
   constructor(scenary) {
+    console.log(" new lider view");
     // parent space to render dish
     this._scenary = scenary;
 
@@ -1028,8 +1278,7 @@ class LiderView {
   // }
 
   async addOneCamera(user, stream) {
-    const iframe = document.getElementById("lider-iframe");
-    let Camera = iframe.contentWindow.document.getElementById(user.id);
+    let Camera = document.getElementById(user.id);
     if (Camera) {
       const video = Camera.querySelector("video");
       video.srcObject = stream;
@@ -1083,13 +1332,12 @@ class LiderView {
     Camera.appendChild(divAudio);
 
     this._dish.appendChild(Camera);
+    console.log(this._dish);
     this.resize();
   }
 
   deleteCamera(id) {
-    const iframe = document.getElementById("lider-iframe");
-
-    let camera = iframe.contentWindow.document.getElementById(id);
+    let camera = document.getElementById(id);
     this._dish.removeChild(camera);
     this.resize();
   }
