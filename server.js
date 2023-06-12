@@ -116,22 +116,6 @@ function createPeer() {
   return peer;
 }
 
-function setBandwidthAudio(sdp, bandwidth) {
-  sdp = sdp.replace(
-    /a=mid:audio\r\n/g,
-    "a=mid:audio\r\nb=AS:" + audioBandwidth + "\r\n"
-  );
-  return sdp;
-}
-
-function setBandwidthVideo(sdp, bandwidth) {
-  sdp = sdp.replace(
-    /a=mid:video\r\n/g,
-    "a=mid:video\r\nb=AS:" + videoBandwidth + "\r\n"
-  );
-  return sdp;
-}
-
 async function handleRequestJoin(body, ws) {
   let roomInfo;
   try {
@@ -491,8 +475,6 @@ wss.on("connection", function (ws) {
           const _answer = await consumers
             .get(consumerId)
             .createAnswer(function (desc) {
-              desc.sdp = setBandwidthAudio(desc.sdp, 50);
-              desc.sdp = setBandwidthVideo(desc.sdp, 256);
               return desc;
             });
           await consumers.get(consumerId).setLocalDescription(_answer);
@@ -537,8 +519,6 @@ wss.on("connection", function (ws) {
           const _answer = await consumersScreenShare
             .get(consumerId)
             .createAnswer(function (desc) {
-              desc.sdp = setBandwidthAudio(desc.sdp, 50);
-              desc.sdp = setBandwidthVideo(desc.sdp, 50);
               return desc;
             });
           await consumersScreenShare
