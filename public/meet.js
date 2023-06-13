@@ -83,7 +83,7 @@ class LiderClient {
   initWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     // console.log(url);
-    // const url = "wss://localhost:5001";
+    // const url = "wss://meet-lider.it-pfiev-dut.tech";
     const url = `wss://${this.serverDomain}`;
     this.connection = new WebSocket(url);
     this.connection.onmessage = (data) => this.handleMessage(data);
@@ -121,8 +121,8 @@ class LiderClient {
       console.log("not enough data ", user);
     }
     const username = user.username || user;
+    console.log("handleRemoteTrack", stream);
     this.liderView?.addOneCamera(user, stream);
-    console.log("handleRemoteTrack", user);
     if (user.id !== this.localUUID && !user.audio) {
       const camera = document.getElementById(user.id);
       const divAudio = camera.getElementsByClassName(
@@ -214,8 +214,11 @@ class LiderClient {
     if (userSharingScreen) {
       this.consumeScreenShare(userSharingScreen);
     }
+
     if (peers.length > 0) {
       for (const peer in peers) {
+        this.addNewParticipant({ user: peers[peer].user });
+        this.updateVideoAudioParticipant({ user: peers[peer].user });
         this.clients.set(peers[peer].id, peers[peer]);
         await this.consumeOnce(peers[peer].user);
       }
@@ -231,6 +234,9 @@ class LiderClient {
   async handleNewProducer({ id, user }) {
     if (id === this.localUUID) return;
 
+    console.log("handleNewProducer", user);
+    this.addNewParticipant({ user });
+    this.updateVideoAudioParticipant({ user });
     this.clients.set(id, user);
     await this.consumeOnce(user);
   }
@@ -310,6 +316,9 @@ class LiderClient {
 
       case "remoteUserUpdate":
         this.handleRemoteUserUpdate(message);
+
+      case "forward-chat":
+        this.addNewMessage(message);
     }
   }
 
@@ -341,6 +350,7 @@ class LiderClient {
 
   handleRemoteUserUpdate(body) {
     if (body.user.id === this.localUUID) return;
+    this.updateVideoAudioParticipant({ user: body.user });
     if (body.action === "toggleVideo") {
       const camera = document.getElementById(body.user.id);
       const video = camera.getElementsByTagName("video")[0];
@@ -370,6 +380,7 @@ class LiderClient {
     const { username, consumerId } = this.clients.get(id);
     this.consumers.delete(consumerId);
     this.clients.delete(id);
+    this.removeParticipant({ userId: id });
     // document
     //   .querySelector(`#remote_${username}`)
     //   .srcObject.getTracks()
@@ -655,6 +666,7 @@ class LiderClient {
         action: "toggleAudio",
       })
     );
+    this.updateVideoAudioParticipant({ user: this.user });
   }
 
   enableVideo() {
@@ -706,6 +718,8 @@ class LiderClient {
         action: "toggleVideo",
       })
     );
+    this.updateVideoAudioParticipant({ user: this.user });
+
     // this.localStream.getVideoTracks()[0].enabled =
     //   !this.localStream.getVideoTracks()[0].enabled;
   }
@@ -1001,6 +1015,79 @@ class LiderClient {
     body.innerHTML = html;
   }
 
+  addNewParticipant({ user }) {
+    const participant = document.getElementById("participants-list");
+    if (document.getElementById(`participant-${user.id}`)) return;
+    const html = `
+    <div class="participant" id="participant-${user.id}">
+      <div class="flex items-center space-x-4">
+        <img
+          src="${user.avatar}"
+          alt=""
+          class="w-14 h-14 rounded-full"
+        />
+        <p class="text-white">${user.username}</p>
+      </div>
+      <div class="space-x-4">
+        <i class="fas fa-microphone-slash" style="color: #ffffff"></i>
+        <i class="fas fa-video-slash" style="color: #ffffff"></i>
+      </div>
+    </div>
+    `;
+    participant.innerHTML += html;
+  }
+
+  removeParticipant({ userId }) {
+    const participant = document.getElementById("participants-list");
+    const participantToRemove = document.getElementById(
+      `participant-${userId}`
+    );
+    participant.removeChild(participantToRemove);
+  }
+
+  updateVideoAudioParticipant({ user }) {
+    const participant = document.getElementById(`participant-${user.id}`);
+    const audioIcon = participant.getElementsByTagName("i")[0];
+    const videoIcon = participant.getElementsByTagName("i")[1];
+
+    if (user.audio) {
+      audioIcon.classList = "fas fa-microphone";
+    } else {
+      audioIcon.classList = "fas fa-microphone-slash";
+    }
+
+    if (user.video) {
+      videoIcon.classList = "fas fa-video";
+    } else {
+      videoIcon.classList = "fas fa-video-slash";
+    }
+  }
+
+  addNewMessage({ user, message }) {
+    const messagesList = document.getElementById("messages-list");
+    if (document.getElementById(message.id)) return;
+    const html = `
+    <div class="message" id=${message.id}>
+      <div class="message-name">
+        <p>${user.username}</p>
+        <p>${new Date().toLocaleTimeString()}</p>
+      </div>
+      <div class="flex space-x-4">
+        <img
+          src="${user.avatar}"
+          alt=""
+          class="w-8 h-8 rounded-full"
+        />
+        <p class="message-content">${message.content}</p>
+        </div>
+      </div>
+    </div>
+    `;
+    messagesList.innerHTML += html;
+    //scroll to bottom
+    messagesList.scrollTop = messagesList.scrollHeight;
+  }
+
   renderMeeting() {
     const body = document.getElementsByTagName("body")[0];
     const html = `<div id="toasts" class="absolute right-10 top-10 z-10 flex flex-col"></div>
@@ -1075,11 +1162,94 @@ class LiderClient {
             <button id="lider-share-screen" class="lider-toolbox-button">
               Share screen
             </button>
+            <button id="lider-members" class="lider-toolbox-button">
+              <i class="fas fa-users" style="color: #ffffff"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+            <div id="lider-chat" class="w-1/4 hidden">
+        <div id="lider-chat-info">
+          <div id="current-user">
+            <div class="flex justify-end m-4 space-x-4 h-16 items-center">
+              <p class="text-white text-xl">${this.user.username}</p>
+              <img
+                src="${this.user.avatar}"
+                alt=""
+                class="w-14 h-14 rounded-full"
+              />
+            </div>
+          </div>
+          <div id="participants" class="h-fit">
+            <div
+              id="participants-title"
+              class="flex space-x-4 p-4 items-center text-white"
+            >
+              <i class="fas fa-user-friends" style="color: #ffffff"></i>
+              <p>Participants</p>
+            </div>
+          </div>
+          <div id="participants-list" class="flex flex-col">
+          </div>
+          <div id="chat">
+            <div
+              id="participants-title"
+              class="flex space-x-4 p-4 items-center text-white"
+            >
+              <i class="fas fa-comment-alt" style="color: #ffffff"></i>
+              <p>Chat</p>
+            </div>
+          </div>
+          <div id="messages-list">
+          </div>
+        </div>
+        <div id="lider-chat-input">
+          <div id="input-message">
+            <div class="flex items-center space-x-4 p-4">
+              <input
+                type="text"
+                placeholder="Type a message"
+                class="w-full rounded-md p-2"
+              />
+              <button id="lider-chat-btn" class="rounded-md bg-blue-500 text-white p-2">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+
+            </div>
           </div>
         </div>
       </div>
     </div>`;
     body.innerHTML = html;
+
+    const membersBtn = document.getElementById("lider-members");
+    membersBtn.addEventListener("click", () => {
+      const chat = document.getElementById("lider-chat");
+      chat.classList.toggle("hidden");
+    });
+
+    const chatBtn = document.getElementById("lider-chat-btn");
+    chatBtn.addEventListener("click", () => {
+      const input = document
+        .getElementById("lider-chat-input")
+        .getElementsByTagName("input")[0];
+      const msg = input.value;
+      if (msg) {
+        const id = new Date().getTime() + this.user.id;
+        const payload = {
+          type: "send-chat",
+          roomId: this.roomId,
+          user: this.user,
+          message: {
+            content: msg,
+            id,
+          },
+        };
+        this.addNewMessage(payload);
+        this.connection.send(JSON.stringify(payload));
+        input.value = "";
+      }
+    });
 
     const inviteBtn = document.getElementById("lider-copy-invite-url");
     inviteBtn?.addEventListener("click", () => {
@@ -1098,8 +1268,11 @@ class LiderClient {
     });
 
     this.liderView = new LiderView(document.getElementById("lider-videos"));
+    console.log(this.liderView);
     this.liderView.append();
     this.liderView.resize();
+    this.addNewParticipant({ user: this.user });
+    this.updateVideoAudioParticipant({ user: this.user });
 
     window.addEventListener("resize", () => {
       this.liderView.resize();

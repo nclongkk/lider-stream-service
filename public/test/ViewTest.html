@@ -5,7 +5,7 @@
     <link
       rel="stylesheet"
       type="text/css"
-      href="https://localhost:5001/style.css"
+      href="https://meet-lider.it-pfiev-dut.tech/style.css"
     />
     <script
       src="https://kit.fontawesome.com/23974c6d06.js"
@@ -32,7 +32,7 @@
   <body scroll="no">
     <div id="toasts" class="absolute right-10 top-10 z-10 flex flex-col"></div>
 
-    <div id="lider-main">
+    <div id="lider-main" class="w-3/4">
       <div id="lider-meeting-area">
         <div id="lider-video-area">
           <div id="lider-videos"></div>
@@ -73,7 +73,7 @@
                     id="lider-invite-url-input"
                     type="text"
                     readonly="readonly"
-                    value="https://localhost:5001/meet"
+                    value="https://meet-lider.it-pfiev-dut.tech/meet"
                     class="rounded-md px-2 py-1 w-30 text-sm"
                   />
                   <button
@@ -98,6 +98,163 @@
             <button id="lider-share-screen" class="lider-toolbox-button">
               Share screen
             </button>
+            <button id="lider-members" class="lider-toolbox-button">
+              <i class="fas fa-users" style="color: #ffffff"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="lider-chat" class="w-1/4">
+        <div id="lider-chat-info">
+          <div id="current-user">
+            <div class="flex justify-end m-4 space-x-4 h-16 items-center">
+              <p class="text-white text-xl">hello</p>
+              <img
+                src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                alt=""
+                class="w-14 h-14 rounded-full"
+              />
+            </div>
+          </div>
+          <div id="participants" class="h-fit">
+            <div
+              id="participants-title"
+              class="flex space-x-4 p-4 items-center text-white"
+            >
+              <i class="fas fa-user-friends" style="color: #ffffff"></i>
+              <p>Participants</p>
+            </div>
+          </div>
+          <div id="participants-list" class="flex flex-col">
+            <div class="participant">
+              <div class="flex items-center space-x-4">
+                <img
+                  src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                  alt=""
+                  class="w-14 h-14 rounded-full"
+                />
+                <p class="text-white">Long Ngo</p>
+              </div>
+              <div class="space-x-4">
+                <i class="fas fa-microphone-slash" style="color: #ffffff"></i>
+                <i class="fas fa-video-slash" style="color: #ffffff"></i>
+              </div>
+            </div>
+          </div>
+          <div id="chat">
+            <div
+              id="participants-title"
+              class="flex space-x-4 p-4 items-center text-white"
+            >
+              <i class="fas fa-comment-alt" style="color: #ffffff"></i>
+              <p>Chat</p>
+            </div>
+          </div>
+          <div id="messages-list">
+            <div class="message">
+              <div class="message-name">
+                <p>David Luiz</p>
+                <p>13:30</p>
+              </div>
+              <div class="flex space-x-4">
+                <img
+                  src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                  alt=""
+                  class="w-8 h-8 rounded-full"
+                />
+                <p class="message-content">
+                  alo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good day
+                </p>
+              </div>
+            </div>
+            <div class="message">
+              <div class="message-name">
+                <p>David Luiz</p>
+                <p>13:30</p>
+              </div>
+              <div class="flex space-x-4">
+                <img
+                  src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                  alt=""
+                  class="w-8 h-8 rounded-full"
+                />
+                <p class="message-content">
+                  alo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good day
+                </p>
+              </div>
+            </div>
+            <div class="message">
+              <div class="message-name">
+                <p>David Luiz</p>
+                <p>13:30</p>
+              </div>
+              <div class="flex space-x-4">
+                <img
+                  src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                  alt=""
+                  class="w-8 h-8 rounded-full"
+                />
+                <p class="message-content">
+                  alo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good day
+                </p>
+              </div>
+            </div>
+            <div class="message">
+              <div class="message-name">
+                <p>David Luiz</p>
+                <p>13:30</p>
+              </div>
+              <div class="flex space-x-4">
+                <img
+                  src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                  alt=""
+                  class="w-8 h-8 rounded-full"
+                />
+                <p class="message-content">
+                  alo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good day
+                </p>
+              </div>
+            </div>
+            <div class="message">
+              <div class="message-name">
+                <p>David Luiz</p>
+                <p>13:30</p>
+              </div>
+              <div class="flex space-x-4">
+                <img
+                  src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                  alt=""
+                  class="w-8 h-8 rounded-full"
+                />
+                <p class="message-content">
+                  alo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good dayalo, have a good dayalo, have a good
+                  dayalo, have a good day
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="lider-chat-input">
+          <div id="input-message">
+            <div class="flex items-center space-x-4 p-4">
+              <input
+                type="text"
+                placeholder="Type a message"
+                class="w-full rounded-md p-2"
+              />
+              <button class="rounded-md bg-blue-500 text-white p-2">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -165,7 +322,7 @@
     </div>
   </div>
 
-  <!-- <script src="https://localhost:5001/simple-sfu-client.js"></script> -->
+  <!-- <script src="https://meet-lider.it-pfiev-dut.tech/simple-sfu-client.js"></script> -->
   <script>
     function showPopup() {
       const modal = document.getElementsByClassName("lider-modal")[0];
@@ -202,6 +359,6 @@
       }, 200);
     }
   </script>
-  <script src="https://localhost:5001/meet.js"></script>
+  <script src="https://meet-lider.it-pfiev-dut.tech/meet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.6.5/flowbite.min.js"></script>
 </html>

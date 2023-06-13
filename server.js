@@ -603,6 +603,19 @@ wss.on("connection", function (ws) {
         }
         break;
       }
+
+      case "send-chat": {
+        const room = rooms.get(body.roomId);
+        if (!room) {
+          return;
+        }
+        const payload = {
+          ...body,
+          type: "forward-chat",
+        };
+        wss.broadcast(body.roomId, JSON.stringify(payload));
+        break;
+      }
       default:
         wss.broadcast(body.roomId, message);
     }
