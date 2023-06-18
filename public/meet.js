@@ -33,6 +33,12 @@ window.addEventListener("message", function (event) {
   }
 });
 
+const pingInterval = setInterval(() => {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send("ping");
+  }
+}, 30000);
+
 class LiderClient {
   constructor() {
     const defaultSettings = {
@@ -92,6 +98,14 @@ class LiderClient {
       this.trigger(_EVENTS.onConnected, event);
       this._isOpen = true;
     };
+  }
+
+  pingWebSocket() {
+    setInterval(() => {
+      if (this._isOpen) {
+        this.connection.send("ping");
+      }
+    }, 30000);
   }
 
   on(event, callback) {
@@ -259,6 +273,10 @@ class LiderClient {
   }
 
   handleMessage({ data }) {
+    if (data === "pong") {
+      console.log("pong");
+      return;
+    }
     const message = JSON.parse(data);
     switch (message.type) {
       case "welcome":

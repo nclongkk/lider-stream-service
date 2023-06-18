@@ -259,6 +259,9 @@ wss.on("connection", function (ws) {
 
   ws.send(JSON.stringify({ type: "welcome", id: peerId }));
   ws.on("message", async function (message) {
+    if (message === "ping") {
+      return ws.send("pong");
+    }
     const body = JSON.parse(message);
     ws.roomId = body.roomId;
 
