@@ -47,7 +47,8 @@ exports.startMeeting = async ({
     );
     return data;
   } catch (error) {
-    console.log(error);
+    console.log('start err', error)
+    throw error;
   }
 };
 

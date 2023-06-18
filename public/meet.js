@@ -97,6 +97,7 @@ class LiderClient {
     this.connection.onopen = (event) => {
       this.trigger(_EVENTS.onConnected, event);
       this._isOpen = true;
+      this.pingWebSocket();
     };
   }
 
