@@ -1,3 +1,5 @@
+const { response } = require("express");
+
 const _EVENTS = {
   onLeave: "onLeave",
   onJoin: "onJoin",
@@ -1097,7 +1099,9 @@ class LiderClient {
           alt=""
           class="w-8 h-8 rounded-full"
         />
-        <p class="message-content">${message.content}</p>
+        <p class="message-content" style="max-width: 200px;">${
+          message.content
+        }</p>
         </div>
       </div>
     </div>
@@ -1238,7 +1242,39 @@ class LiderClient {
           </div>
         </div>
       </div>
-    </div>`;
+    </div>
+    <div
+      class="absolute left-1/4 top-1/4 h-1/2 w-1/2 z-10 bg-gray-800 border rounded hidden p-4 space-y-4"
+      id="preview"
+    >
+      <div class="h-3/4 flex justify-center items-center">
+        <img
+          id="blah"
+          src="#"
+          alt="your image"
+          class="object-contain max-w-full max-h-full"
+        />
+      </div>
+      <div class="flex justify-between items-center">
+        <div>
+          <p id="image-prev-name" class="text-white"></p>
+          <p id="image-prev-size" class="text-white"></p>
+        </div>
+        <div class="space-x-4">
+          <button id="cancel-submit-file" class="bg-gray-50 border p-2 rounded">
+            Cancel
+          </button>
+          <button
+            id="submit-file"
+            class="bg-blue-500 border p-2 rounded text-white"
+            onclick="submitFile()"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+    `;
     body.innerHTML = html;
 
     const membersBtn = document.getElementById("lider-members");
@@ -1284,6 +1320,58 @@ class LiderClient {
           ttl: 4000,
         });
       });
+    });
+
+    const attachBtn = document.getElementById("attach-btn");
+    attachBtn.onclick = () => {
+      const fileInput = document.getElementById("inputFile");
+      fileInput.click();
+    };
+
+    const fileInput = document.getElementById("inputFile");
+    fileInput.onchange = () => {
+      const modal = document.getElementById("preview");
+      modal.classList.remove("hidden");
+      const selectedFile = fileInput.files[0];
+      const imagePreview = document.getElementById("blah");
+      imagePreview.src = URL.createObjectURL(selectedFile);
+      const imagePrevName = document.getElementById("image-prev-name");
+      imagePrevName.innerHTML = selectedFile.name;
+      const imagePrevSize = document.getElementById("image-prev-size");
+      imagePrevSize.innerHTML = (selectedFile.size / 1024).toFixed(2) + " KB";
+    };
+
+    const cancelSubmitFile = document.getElementById("cancel-submit-file");
+    cancelSubmitFile.addEventListener("click", () => {
+      const modal = document.getElementById("preview");
+      modal.classList.add("hidden");
+    });
+    const submitFile = document.getElementById("submit-file");
+    submitFile.addEventListener("click", () => {
+      const fileInput = document.getElementById("inputFile");
+      const selectedFile = fileInput.files[0];
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      fetch("https://files-lider.it-pfiev-dut.tech/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+        .then((res) => response.json())
+        .then((result) => {
+          const payload = {
+            type: "send-chat",
+            roomId: this.roomId,
+            user: this.user,
+            message: {
+              type: "file",
+              content: payload,
+              id,
+            },
+          };
+          this.addNewMessage(payload);
+          this.connection.send(JSON.stringify(payload));
+        });
+      fileInput.value = "";
     });
 
     this.liderView = new LiderView(document.getElementById("lider-videos"));
