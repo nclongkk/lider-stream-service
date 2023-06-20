@@ -241,6 +241,46 @@
                 </p>
               </div>
             </div>
+            <div class="message" id="${message.id}">
+              <div class="message-name">
+                <p>sad</p>
+                <p>asdf</p>
+              </div>
+              <div class="flex space-x-4">
+                <img
+                  src="https://ui-avatars.com/api/?name=Long+Ngo&size=128"
+                  alt=""
+                  class="w-8 h-8 rounded-full"
+                />
+                <div class="message-content">
+                  <a
+                    href="https://media.istockphoto.com/id/1296344118/vi/anh/ng%C6%B0%E1%BB%9Di-ph%E1%BB%A5-n%E1%BB%AF-h%E1%BA%A1nh-ph%C3%BAc-xinh-%C4%91%E1%BA%B9p-t%E1%BA%ADn-h%C6%B0%E1%BB%9Fng-%C3%A1nh-s%C3%A1ng-m%E1%BA%B7t-tr%E1%BB%9Di-%E1%BA%A5m-%C3%A1p-trong-m%E1%BB%99t-c%C3%B4ng-vi%C3%AAn-c%C3%B4ng-c%E1%BB%99ng.jpg?s=612x612&w=0&k=20&c=pTm4TBjJNL7__ooPIPoIUqpc0Tuzr-ELSqRbll2o7Ko="
+                    target="_blank"
+                    class="flex items-center space-x-4"
+                  >
+                    <i class="fas fa-solid fa-file" style="color: #ffffff"></i>
+                    <div>
+                      <p style="color: #ffffff">asfdafd.jpg</p>
+                      <p style="font-size: 12px">asfdafd.jpg</p>
+                    </div>
+                  </a>
+                </div>
+                <p
+                  class="message-content"
+                  style="max-width: 200px; word-wrap: break-word"
+                >
+                  <a
+                    href="https://media.istockphoto.com/id/1296344118/vi/anh/ng%C6%B0%E1%BB%9Di-ph%E1%BB%A5-n%E1%BB%AF-h%E1%BA%A1nh-ph%C3%BAc-xinh-%C4%91%E1%BA%B9p-t%E1%BA%ADn-h%C6%B0%E1%BB%9Fng-%C3%A1nh-s%C3%A1ng-m%E1%BA%B7t-tr%E1%BB%9Di-%E1%BA%A5m-%C3%A1p-trong-m%E1%BB%99t-c%C3%B4ng-vi%C3%AAn-c%C3%B4ng-c%E1%BB%99ng.jpg?s=612x612&w=0&k=20&c=pTm4TBjJNL7__ooPIPoIUqpc0Tuzr-ELSqRbll2o7Ko="
+                    target="_blank"
+                  >
+                    <!-- <video
+                      src="https://files-lider.it-pfiev-dut.tech/files/1687233824904_20230511-104733.mp4"
+                      alt=""
+                    /> -->
+                  </a>
+                </p>
+              </div>
+            </div>
           </div>
         </div>
         <div id="lider-chat-input">
@@ -259,13 +299,7 @@
                 placeholder="Type a message"
                 class="w-full rounded-md p-2"
               />
-              <input
-                type="file"
-                id="inputFile"
-                name="avatar"
-                accept="image/png, image/jpeg"
-                class="hidden"
-              />
+              <input type="file" id="inputFile" name="avatar" class="hidden" />
 
               <button class="rounded-md bg-blue-500 text-white p-2">
                 <i class="fas fa-paper-plane"></i>
@@ -343,10 +377,16 @@
   >
     <div class="h-3/4 flex justify-center items-center">
       <img
-        id="blah"
+        id="image-preview"
         src="#"
         alt="your image"
-        class="object-contain max-w-full max-h-full"
+        class="object-contain max-w-full max-h-full hidden"
+      />
+      <video
+        id="video-preview"
+        src="#"
+        alt="your video"
+        class="object-contain max-w-full max-h-full hidden"
       />
     </div>
     <div class="flex justify-between items-center">
@@ -385,8 +425,23 @@
       modal.classList.remove("hidden");
       const selectedFile = fileInput.files[0];
       console.log(selectedFile);
-      const imagePreview = document.getElementById("blah");
-      imagePreview.src = URL.createObjectURL(selectedFile);
+      if (selectedFile.type.startsWith("image")) {
+        const imagePreview = document.getElementById("image-preview");
+        imagePreview.classList.remove("hidden");
+        imagePreview.src = URL.createObjectURL(selectedFile);
+      } else if (selectedFile.type.startsWith("video")) {
+        const videoPreview = document.getElementById("video-preview");
+        videoPreview.classList.remove("hidden");
+        videoPreview.src = URL.createObjectURL(selectedFile);
+      } else {
+        const imagePreview = document.getElementById("image-preview");
+        imagePreview.classList.remove("hidden");
+        imagePreview.src =
+          "https://upload.wikimedia.org/wikipedia/commons/5/59/OneDrive_Folder_Icon.svg";
+      }
+
+      // const imagePreview = document.getElementById("blah");
+      // imagePreview.src = URL.createObjectURL(selectedFile);
       const imagePrevName = document.getElementById("image-prev-name");
       imagePrevName.innerHTML = selectedFile.name;
       const imagePrevSize = document.getElementById("image-prev-size");

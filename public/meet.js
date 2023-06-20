@@ -34,8 +34,8 @@ window.addEventListener("message", function (event) {
 });
 
 const pingInterval = setInterval(() => {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send("ping");
+  if (lider.connection.readyState === WebSocket.OPEN) {
+    lider.connection.send("ping");
   }
 }, 30000);
 
@@ -1082,28 +1082,143 @@ class LiderClient {
     }
   }
 
+  renderHtmlForMessage({ user, message }) {
+    console.log(message);
+    let html;
+    if (typeof message.content === "string") {
+      html = `
+      <div class="message" id=${message.id}>
+        <div class="message-name">
+          <p>${user.username}</p>
+          <p>${new Date().toLocaleTimeString()}</p>
+        </div>
+        <div class="flex space-x-4">
+          <img
+            src="${user.avatar}"
+            alt=""
+            class="w-8 h-8 rounded-full"
+          />
+          <p class="message-content" style="max-width: 200px; word-wrap: break-word;">${
+            message.content
+          }</p>
+          </div>
+        </div>
+      </div>
+      `;
+      return html;
+    }
+
+    if (typeof message.content === "object") {
+      if (message.content.mimetype.startsWith("image")) {
+        html = `
+        <div class="message" id=${message.id}>
+          <div class="message-name">
+            <p>${user.username}</p>
+            <p>${new Date().toLocaleTimeString()}</p>
+          </div>
+          <div class="flex space-x-4">
+            <img
+              src="${user.avatar}"
+              alt=""
+              class="w-8 h-8 rounded-full"
+            />
+                <div class="message-content">
+                  <a
+                    href="${message.content.url}"
+                    target="_blank"
+                    class="flex items-center space-x-4"
+                  >
+                    <img 
+                      src="${message.content.url}"
+                      alt=""
+                    />
+                  </a>
+                </div>
+            </div>
+          </div>
+        </div>
+        `;
+        return html;
+      }
+      if (message.content.mimetype.startsWith("video")) {
+        html = `
+        <div class="message" id=${message.id}>
+          <div class="message-name">
+            <p>${user.username}</p>
+            <p>${new Date().toLocaleTimeString()}</p>
+          </div>
+          <div class="flex space-x-4">
+            <img
+              src="${user.avatar}"
+              alt=""
+              class="w-8 h-8 rounded-full"
+            />
+                <div class="message-content">
+                  <a
+                    href="${message.content.url}"
+                    target="_blank"
+                    class="flex items-center space-x-4"
+                  >
+                    <video 
+                      src="${message.content.url}"
+                      alt=""
+                    />
+                  </a>
+                </div>
+            </div>
+          </div>
+        </div>
+        `;
+        return html;
+      }
+
+      if (message.content.originalName.length > 20) {
+        message.content.originalName =
+          `${message.content.originalName.substr(0, 20)}...` +
+          message.content.originalName.substr(-4);
+      }
+
+      html = `
+        <div class="message" id=${message.id}>
+          <div class="message-name">
+            <p>${user.username}</p>
+            <p>${new Date().toLocaleTimeString()}</p>
+          </div>
+          <div class="flex space-x-4">
+            <img
+              src="${user.avatar}"
+              alt=""
+              class="w-8 h-8 rounded-full"
+            />
+                <div class="message-content">
+                  <a
+                    href="${message.content.url}"
+                    target="_blank"
+                    class="flex items-center space-x-4"
+                  >
+                    <i class="fas fa-solid fa-file" style="color: #ffffff"></i>
+                    <div>
+                      <p style="color: #ffffff">${
+                        message.content.originalName
+                      }</p>
+                      <p style="font-size: 12px">${(
+                        message.content.size / 1024
+                      ).toFixed(2)} KB</p>
+                    </div>
+                  </a>
+                </div>
+            </div>
+          </div>
+        </div>
+        `;
+      return html;
+    }
+  }
+
   addNewMessage({ user, message }) {
     const messagesList = document.getElementById("messages-list");
     if (document.getElementById(message.id)) return;
-    const html = `
-    <div class="message" id=${message.id}>
-      <div class="message-name">
-        <p>${user.username}</p>
-        <p>${new Date().toLocaleTimeString()}</p>
-      </div>
-      <div class="flex space-x-4">
-        <img
-          src="${user.avatar}"
-          alt=""
-          class="w-8 h-8 rounded-full"
-        />
-        <p class="message-content" style="max-width: 200px;">${
-          message.content
-        }</p>
-        </div>
-      </div>
-    </div>
-    `;
+    const html = this.renderHtmlForMessage({ user, message });
     messagesList.innerHTML += html;
     //scroll to bottom
     messagesList.scrollTop = messagesList.scrollHeight;
@@ -1226,11 +1341,25 @@ class LiderClient {
         </div>
         <div id="lider-chat-input">
           <div id="input-message">
+            <div class="px-4 flex items-center">
+              <button id="attach-btn">
+                <i
+                  class="fas fa-sharp fa-light fa-paperclip"
+                  style="color: #ffffff"
+                ></i>
+              </button>
+            </div>
             <div class="flex items-center space-x-4 p-4">
               <input
                 type="text"
                 placeholder="Type a message"
                 class="w-full rounded-md p-2"
+              />
+              <input
+                type="file"
+                id="inputFile"
+                name="avatar"
+                class="hidden"
               />
               <button id="lider-chat-btn" class="rounded-md bg-blue-500 text-white p-2">
                 <i class="fas fa-paper-plane"></i>
@@ -1246,12 +1375,19 @@ class LiderClient {
       id="preview"
     >
       <div class="h-3/4 flex justify-center items-center">
-        <img
-          id="blah"
-          src="#"
-          alt="your image"
-          class="object-contain max-w-full max-h-full"
-        />
+      <img
+        id="image-preview"
+        src="#"
+        alt="your image"
+        class="object-contain max-w-full max-h-full hidden"
+      />
+      <video
+        controls
+        id="video-preview"
+        src="#"
+        alt="your video"
+        class="object-contain max-w-full max-h-full hidden"
+      />
       </div>
       <div class="flex justify-between items-center">
         <div>
@@ -1265,7 +1401,6 @@ class LiderClient {
           <button
             id="submit-file"
             class="bg-blue-500 border p-2 rounded text-white"
-            onclick="submitFile()"
           >
             Send
           </button>
@@ -1331,8 +1466,21 @@ class LiderClient {
       const modal = document.getElementById("preview");
       modal.classList.remove("hidden");
       const selectedFile = fileInput.files[0];
-      const imagePreview = document.getElementById("blah");
-      imagePreview.src = URL.createObjectURL(selectedFile);
+      console.log(selectedFile);
+      if (selectedFile.type.startsWith("image")) {
+        const imagePreview = document.getElementById("image-preview");
+        imagePreview.classList.remove("hidden");
+        imagePreview.src = URL.createObjectURL(selectedFile);
+      } else if (selectedFile.type.startsWith("video")) {
+        const videoPreview = document.getElementById("video-preview");
+        videoPreview.classList.remove("hidden");
+        videoPreview.src = URL.createObjectURL(selectedFile);
+      } else {
+        const imagePreview = document.getElementById("image-preview");
+        imagePreview.classList.remove("hidden");
+        imagePreview.src =
+          "https://upload.wikimedia.org/wikipedia/commons/5/59/OneDrive_Folder_Icon.svg";
+      }
       const imagePrevName = document.getElementById("image-prev-name");
       imagePrevName.innerHTML = selectedFile.name;
       const imagePrevSize = document.getElementById("image-prev-size");
@@ -1343,6 +1491,10 @@ class LiderClient {
     cancelSubmitFile.addEventListener("click", () => {
       const modal = document.getElementById("preview");
       modal.classList.add("hidden");
+      const imagePreview = document.getElementById("image-preview");
+      imagePreview.classList.add("hidden");
+      const videoPreview = document.getElementById("video-preview");
+      videoPreview.classList.add("hidden");
     });
     const submitFile = document.getElementById("submit-file");
     submitFile.addEventListener("click", () => {
@@ -1354,22 +1506,36 @@ class LiderClient {
         method: "POST",
         body: formData,
       })
-        .then((res) => response.json())
+        .then((res) => res.json())
         .then((result) => {
+          const id = new Date().getTime() + this.user.id;
           const payload = {
             type: "send-chat",
             roomId: this.roomId,
             user: this.user,
             message: {
               type: "file",
-              content: payload,
+              content: result,
               id,
             },
           };
           this.addNewMessage(payload);
           this.connection.send(JSON.stringify(payload));
-        });
+        }).catch((error) => {
+              this.renderNotification({
+                msg: "File too large",
+                iconUrl:
+                  "https://cdn-icons-png.flaticon.com/512/4436/4436559.png",
+                ttl: 4000,
+              });
+        })
       fileInput.value = "";
+      const imagePreview = document.getElementById("image-preview");
+      imagePreview.classList.add("hidden");
+      const videoPreview = document.getElementById("video-preview");
+      videoPreview.classList.add("hidden");
+      const modal = document.getElementById("preview");
+      modal.classList.add("hidden");
     });
 
     this.liderView = new LiderView(document.getElementById("lider-videos"));
