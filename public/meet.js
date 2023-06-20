@@ -1,5 +1,3 @@
-const { response } = require("express");
-
 const _EVENTS = {
   onLeave: "onLeave",
   onJoin: "onJoin",
