@@ -1341,26 +1341,23 @@ class LiderClient {
         </div>
         <div id="lider-chat-input">
           <div id="input-message">
-            <div class="px-4 flex items-center">
-              <button id="attach-btn">
-                <i
-                  class="fas fa-sharp fa-light fa-paperclip"
-                  style="color: #ffffff"
-                ></i>
-              </button>
-            </div>
             <div class="flex items-center space-x-4 p-4">
-              <input
-                type="text"
-                placeholder="Type a message"
-                class="w-full rounded-md p-2"
-              />
-              <input
-                type="file"
-                id="inputFile"
-                name="avatar"
-                class="hidden"
-              />
+              <div class="px-4 flex items-center relative">
+                <input
+                  type="text"
+                  placeholder="Type a message"
+                  class="w-full rounded-md p-2"
+                />
+                <input
+                  type="file"
+                  id="inputFile"
+                  name="avatar"
+                  class="hidden"
+                />
+                <button id="attach-btn" class="absolute right-8">
+                  <i class="fas fa-sharp fa-light fa-paperclip"></i>
+                </button>
+              </div>
               <button id="lider-chat-btn" class="rounded-md bg-blue-500 text-white p-2">
                 <i class="fas fa-paper-plane"></i>
               </button>
@@ -1521,14 +1518,14 @@ class LiderClient {
           };
           this.addNewMessage(payload);
           this.connection.send(JSON.stringify(payload));
-        }).catch((error) => {
-              this.renderNotification({
-                msg: "File too large",
-                iconUrl:
-                  "https://cdn-icons-png.flaticon.com/512/4436/4436559.png",
-                ttl: 4000,
-              });
         })
+        .catch((error) => {
+          this.renderNotification({
+            msg: "File too large",
+            iconUrl: "https://cdn-icons-png.flaticon.com/512/4436/4436559.png",
+            ttl: 4000,
+          });
+        });
       fileInput.value = "";
       const imagePreview = document.getElementById("image-preview");
       imagePreview.classList.add("hidden");

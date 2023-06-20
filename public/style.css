@@ -151,6 +151,8 @@ header h1 {
 
 #lider-chat-info {
   height: 88vh;
+  display: flex;
+  flex-direction: column;
 }
 #lider-chat-input {
   height: 12vh;
@@ -186,6 +188,7 @@ header h1 {
 
 #participants-list {
   max-height: 22%;
+  min-height: 22%;
   overflow-y: scroll;
 }
 #current-user {
@@ -196,8 +199,8 @@ header h1 {
   height: 8%;
 }
 #messages-list {
-  max-height: 40%;
   overflow-y: scroll;
+  margin-bottom: auto;
 }
 
 .message {
